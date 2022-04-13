@@ -53,6 +53,7 @@ def parker(pla,star,T,vo,limd):
     t=star.age
     vc=sqrt(2*kb*T/mp)
     rc=mp*G*M/(4*kb*T)
+    vorb=sqrt(G*M/d)
     if (d >= limd):
         try:
             v=optimize.newton(parker_velocity,350.0e3,parker_velocity_p, args=(d,rc,vc), maxiter=50)
@@ -60,10 +61,11 @@ def parker(pla,star,T,vo,limd):
             v=0.
     else :
         try:
-            v=optimize.newton(parker_velocity,10.0e3,parker_velocity_p, args=(d,rc,vc), maxiter=50)
+            v=optimize.newton(parker_velocity,10.0e3,parker_velocity_p, args=(d,rc,vc), maxiter=100)
         except (ZeroDivisionError, RuntimeError):
             v=0.
 
+    veff=sqrt((v**2)+(vorb**2))
     Mls=masslossrate(t,R)
     n=Mls/(4*np.pi*(d**2)*v*mp)
-    return(v,n)
+    return(v,veff,n)
