@@ -9,8 +9,8 @@ Created on Thu Dec  2 15:46:05 2021
 import numpy as np
 from math import *
 
-from classPlanet import *
-from classStar import *
+from Planet import *
+from Star import *
 
 from calc_tools import *
 
@@ -69,7 +69,7 @@ def Reiners_Christensen(planet,star,jup,sol,table1,table2,table3, normalize=0):
     #    t=star.age
     #    L=planet.calculate_luminosity(t,table1,table2,table3)/jup.luminosity
     
-    a=Mp*(L**2)/pow(Rp,7)
+    a=Mp*(L**2)*pow(Rp,11)
     b=pow(1-(0.17/Mp),3)/pow((1-0.17),3)
-    res=b*pow(a,1./6)*pow(Rp,3)
+    res=b*pow(a,1./6)
     return(res)

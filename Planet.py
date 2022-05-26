@@ -6,23 +6,27 @@ Created on Fri Dec  3 09:53:23 2021
 @author: emauduit
 """
 import os
+import Star
 import scipy.io as sio
+import pandas as pd
 from scipy.io import readsav
 import numpy as np
 from math import *
+from magneticmoment import *
 from calc_tools import *
 
 
 class Planet:
     
-    def __init__(self,name,mp,rp,w,wo,L,d):
+    def __init__(self,name:str,mp:float,rp:float,w:float,wo:float,L:float,d:float,Rs:float=0.5):
         self.name=name
         self.mass=mp
         self.radius=rp
         self.rotrate=w
         self.orbitperiod=wo
         self.luminosity=L
-        self.stardist=d        
+        self.stardist=d
+        self.radmag=Rs        
         
     def affiche(self):
         print("Name : ", self.name)
@@ -32,6 +36,7 @@ class Planet:
         print("Orbital period : ", self.orbitperiod, "s-1")
         print("Luminosity : ", self.luminosity, "W")
         print("Distance to host star : ", self.stardist, "m")
+        print("Radius of the magnetosphere : ", self.radmag, "m")
         
     def affiche_norm(self):
         print("Name : ", self.name)
@@ -59,7 +64,7 @@ class Planet:
         return(w)
 
 
-    def calculate_luminosity(self,t,table1,table2,table3):
+    def calculate_luminosity(self,t:float,table1,table2,table3):
         """Retourne la liste des luminosités en fonction de l'âge selon la valeur de M"""
         MJ=1.8986e27
         M=self.mass/MJ
@@ -89,7 +94,7 @@ class Planet:
         M=star.mass
         d=self.stardist
         G=6.6725985e-11 
-        self.rotrate=pow(M*G/pow(d,3),1/2)
+        self.orbitperiod=pow(M*G/pow(d,3),1/2)
 
     
     def tidal_locking(self,t,Ms):
@@ -121,6 +126,52 @@ class Planet:
             else: 
                 self.rotrate=1.0
 
+    def magnetosphere_radius(self,Mm,n,veff,T):
+        kb=1.380658e-23 #J/K
+        mp=1.660540210e-27 #kg
+        res1=(mp*n*(veff**2))+(2*n*kb*T)
+        Rs=pow((np.pi*4e-7*(1.16**2)*(Mm**2))/(res1*8*(np.pi**2)),1/6)
+        return(Rs)
+    
+    def magnetic_moment(self, model:str, rc:float, rhoc:float, star:Star):
+        """ Compute the value of the magnetic moment of the planet using the specified model
+        
+        :param model:
+            Name of the model : blackett, busse, mizu_mod, mizu_slow, sano, rein-chris
+        :type model:
+            str
+        :param rc:
+            Radius of the dynamo region [m]
+        :type rc:
+            float
+        :param rhoc:
+            Mass density in the dynamo region [m-3]
+        :type rhoc:
+            float
+        """
+        if (model=='blackett'):
+            Mm=blackett(rc, self.rotrate, rhoc)
+            return(Mm)
+        if (model=='busse'):
+            Mm=Busse(rc, self.rotrate, rhoc)
+            return(Mm)
+        if (model=='mizu_mod'):
+            Mm=Mizu_moderate(rc,self.rotrate,rhoc,1.0)
+            return(Mm)
+        if (model=='mizu_slow'):
+            Mm=Mizu_slow(rc, self.rotrate,rhoc,1.0)
+        if (model=='sano') :
+            Mm=sano(rc, self.rotrate,rhoc)
+            return(Mm)
+        if (model=='rein-chris'):
+            table_1MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ.csv', delimiter=';')
+            table_5MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ.csv', delimiter=';')
+            table_10MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ.csv', delimiter=';')
+            Mm=Reiners_Christensen(self,star,table_1MJ,table_5MJ,table_10MJ)
+            return(Mm)
+
+
+        
 
 
 

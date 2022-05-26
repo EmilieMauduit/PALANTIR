@@ -31,10 +31,14 @@ def rhoLEp(r,Mp,Rp,rhot):
     return(res)
 
 def LaneEmden(Mp, Rp,rhot):
-    try:
-        res=optimize.newton(rhoLE,Rp/2, fprime=rhoLEp , args=(Mp, Rp, rhot), maxiter=50)
-    except(ZeroDivisionError, RuntimeError):
-        res=0.0
+    if (Mp<=5*1.8986e27):
+        try:
+            res=optimize.newton(rhoLE,Rp/2, fprime=rhoLEp , args=(Mp, Rp, rhot), maxiter=50)
+        except(ZeroDivisionError, RuntimeError):
+            res=0.0
+    else :
+        res=optimize.newton(rhoLE,0.93*Rp, fprime=rhoLEp , args=(Mp, Rp, rhot),tol=1.0, maxiter=50)
+
     return(res)
 
 # Modèles de calcul de la densité de masse dans la région dynamo

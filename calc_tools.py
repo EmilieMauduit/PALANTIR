@@ -95,3 +95,10 @@ def calc_nsun(t:float):
     no=1.6e10 #m-3
     nsun=no/pow((1+(t/tau)),1.5)
     return(nsun)
+
+def magnetosphere_radius(Mm,n,veff,T):
+    kb=1.380658e-23 #J/K
+    mp=1.660540210e-27 #kg
+    res1=(mp*n*(veff**2))+(2*n*kb*T)
+    Rs=pow((np.pi*4e-7*(1.16**2)*(Mm**2))/(res1*8*(np.pi**2)),1/6)
+    return(Rs)

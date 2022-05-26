@@ -15,8 +15,8 @@ from math import *
 from sympy.solvers import solve
 from sympy import Symbol
 
-from classPlanet import *
-from classStar import *
+from Planet import *
+from Star import *
 
 from calc_tools import *
 
@@ -155,9 +155,6 @@ def calc_temperature(M:float,t:float):
 
 
 
-
-
-
 def parker(pla:Planet,star:Star):
     """Compute the velocity and the density of the SW using the Parker model
         :param pla:
@@ -212,4 +209,31 @@ def parker(pla:Planet,star:Star):
     veff=sqrt((v**2)+(vorb**2))
     Mls=masslossrate(t,R)
     n=Mls/(4*np.pi*(d**2)*v*mp)
-    return(v,veff,n)
+    return(v,veff,n,T)
+
+
+def CME(star:Star, pla:Planet):
+    """ Evaluates if it is necessary to take into account CME in the stellar wind model.
+        Returns a tuple containing the speed, the effective speed and the density of the stellar wind.   
+            
+        :param star:
+            Star of the system considered
+        :type star:
+            Star
+        :param pla:
+            Planet of the system considered
+        :type pla:
+            Planet
+    """
+    T=2e6 #K
+    d=pla.stardist
+    dua=1.49597870700e11 #m
+    G=6.6725985e-11 #N.m^2/kg^2
+    nwo=4.88e6
+    nso=7.1e6
+    nw=nwo*pow((d/dua),-2.31)
+    ns=nso*pow((d/dua),-2.99)
+    v=5.26e5
+    veff=sqrt((v**2)+(star.mass*G/d))
+    return(v,veff,ns,T)
+
