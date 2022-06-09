@@ -61,8 +61,14 @@ def Reiners_Christensen(planet,star,jup,sol,table1,table2,table3, normalize=0):
     Rp=planet.radius
     t=star.age
     #-0.5e9
-    LJ=jup.calculate_luminosity(sol.age,table1,table2, table3)
-    L=planet.calculate_luminosity(t,table1,table2,table3)/LJ
+    LJ=jup.luminosity
+    if( planet.name == 'Jupiter') :
+        L=1.0
+        print('jup')
+    else :
+        L=planet.luminosity/LJ
+        #L=planet.calculate_luminosity(t,table1,table2,table3)/LJ
+    print('dans RC : L=',L)
     #else :
     #    Mp=planet.normalize_mass(jup)
     #    Rp=planet.normalize_radius(jup)
@@ -73,3 +79,47 @@ def Reiners_Christensen(planet,star,jup,sol,table1,table2,table3, normalize=0):
     b=pow(1-(0.17/Mp),3)/pow((1-0.17),3)
     res=b*pow(a,1./6)
     return(res)
+
+
+def magnetic_moment(self, model:str, rc:float, rhoc:float, star:Star):
+    """ Compute the value of the magnetic moment of the planet using the specified model
+        
+    :param model:
+        Name of the model : blackett, busse, mizu_mod, mizu_slow, sano, rein-chris
+    :type model:
+        str
+    :param rc:
+        Radius of the dynamo region [m]
+    :type rc:
+        float
+    :param rhoc:
+        Mass density in the dynamo region [m-3]
+    :type rhoc:
+        float
+    """
+    if (model=='blackett'):
+        Mm=blackett(rc, self.rotrate, rhoc)
+        return(Mm)
+    if (model=='busse'):
+        Mm=Busse(rc, self.rotrate, rhoc)
+        return(Mm)
+    if (model=='mizu_mod'):
+        Mm=Mizu_moderate(rc,self.rotrate,rhoc,1.0)
+        return(Mm)
+    if (model=='mizu_slow'):
+        Mm=Mizu_slow(rc, self.rotrate,rhoc,1.0)
+    if (model=='sano') :
+        Mm=sano(rc, self.rotrate,rhoc)
+        return(Mm)
+    if (model=='rein-chris'):
+        table_1MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ.csv', delimiter=';')
+        table_5MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ.csv', delimiter=';')
+        table_10MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ.csv', delimiter=';')
+        Mm=Reiners_Christensen(self,star,table_1MJ,table_5MJ,table_10MJ)
+        return(Mm)
+
+
+# ============================================================= #
+# ----------------------- MagneticMoment ---------------------- #
+# ============================================================= #
+

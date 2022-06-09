@@ -12,94 +12,113 @@ import pandas as pd
 from scipy.io import readsav
 import numpy as np
 from math import *
+
+
 from magneticmoment import *
 from calc_tools import *
 
 
+# ============================================================= #
+# --------------------------- Planet -------------------------- #
+# ============================================================= #
+
+
+
 class Planet:
     
-    def __init__(self,name:str,mp:float,rp:float,w:float,wo:float,L:float,d:float,Rs:float=0.5):
-        self.name=name
-        self.mass=mp
-        self.radius=rp
-        self.rotrate=w
-        self.orbitperiod=wo
-        self.luminosity=L
-        self.stardist=d
-        self.radmag=Rs        
-        
-    def affiche(self):
-        print("Name : ", self.name)
-        print("Mass : ", self.mass, " kg")
-        print("Radius : ", self.radius, " m")
-        print("Rotation rate : ", self.rotrate, " s-1")
-        print("Orbital period : ", self.orbitperiod, "s-1")
-        print("Luminosity : ", self.luminosity, "W")
-        print("Distance to host star : ", self.stardist, "m")
-        print("Radius of the magnetosphere : ", self.radmag, "m")
-        
-    def affiche_norm(self):
-        print("Name : ", self.name)
-        print("Mass : ", self.mass, " MJ")
-        print("Radius : ", self.radius, " RJ")
-        print("Rotation rate : ", self.rotrate, " wJ")
+    def __init__(self,name:str,Mp:float,Rp:float,d:float,a:float,wo:float=None,w:float=None):
+        """ Define a planet object. Every parameter must be normalized at Jupiter.
+            :param name:
+                Name of the planet
+            :type name:
+                str
+            :param Mp:
+                Mass of the planet, expected to be normalized to Jupiter's.
+            :type Mp:
+                float
+            :param Rp:
+                Radius of the planet, expected to be normalized to Jupiter's.
+            :type Rp:
+                float
+            :param w:
+                Rotation rate of the planet, expected to be normalized to Jupiter's.
+            :type w:
+                float
+            :param wo:
+                Orbital period of the planet, expected to be normalized to Jupiter's.
+            :type wo:
+                float
+            :param d:
+                Distance between the planet and its host star, in AU.
+            :type d:
+                float
+            :param a:
+                Semi-major axis, in AU.
+            :type a:
+                float
+        """
 
-    
-    #Methods
-    
-    def normalize_all(self,planorm):
-        #Normalize the parameters to the values of the ones of the input planet (usually Jupiter)
-        M=self.mass/planorm.mass
-        R=self.radius/planorm.radius
-        w=self.rotrate/planorm.rotrate
-        return(M,R,w)
-    def normalize_mass(self,planorm):
-        M=self.mass/planorm.mass
+        self.name=name
+        self.mass=Mp
+        self.radius=Rp
+        self.orbitperiod=wo
+        self.rotrate= tidal_locking
+        self.stardist=d
+        self.sm_axis=a    
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+
+    def talk(self):
+        print("Name : ", self.name)
+        print("Mass : ", self.mass, " Mj")
+        print("Radius : ", self.radius, " Rj")
+        print("Rotation rate : ", self.rotrate, " wj")
+        print("Orbital period : ", self.orbitperiod, "woj")
+        print("Distance to host star : ", self.stardist, " AU")
+        print("Semi-major axis : ", self.sm_axis, " AU")
+        
+    def unnormalize_mass(self):
+        MJ=1.8986e27 #kg
+        M=self.mass*MJ
         return(M)
-    def normalize_radius(self, planorm):
-        R=self.radius/planorm.radius
+    def unnormalize_radius(self):
+        RJ=71492e3 #m
+        R=self.radius*RJ
         return(R)
-    def normalize_rotrate(self, planorm):
-        w=self.rotrate/planorm.rotrate
+    def unnormalize_rotrate(self):
+        wJ=1.77e-4   #s-1
+        w=self.rotrate*wJ
         return(w)
 
 
-    def calculate_luminosity(self,t:float,table1,table2,table3):
-        """Retourne la liste des luminosités en fonction de l'âge selon la valeur de M"""
-        MJ=1.8986e27
-        M=self.mass/MJ
-        if (0.0 <= M <= 5.0):
-            dM=5.0-M
-            if ( dM >= 2.5):
-                L_ind=find_value(t,table1['t_Gyr'])
-                L=table1['L_Ls'][L_ind]
-            else :
-                L_ind=find_value(t,table2['t_Gyr'])
-                L=table2['L_Ls'][L_ind]
-        elif (5.0 <= M <= 10.0) :
-            dM=10.0-M
-            if (dM >= 2.5):
-                L_ind=find_value(t,table2['t_Gyr'])
-                L=table2['L_Ls'][L_ind]
-            else :
-                L_ind=find_value(t,table3['t_Gyr'])
-                L=table3['L_Ls'][L_ind]
-        else :
-            L_ind=find_value(t,table3['t_Gyr'])
-            L=table3['L_Ls'][L_ind]
-        self.luminosity=L
-        return(L)
-
-    def calculate_orbitalperiod(self,star):
-        M=star.mass
+    def calculate_orbitalperiod(self,Ms:float):
+        """ Computes the orbital period of the planet.
+            :param Ms:
+                Mass of the host star of the planet.
+            :type Ms:
+                float
+        """
         d=self.stardist
         G=6.6725985e-11 
-        self.orbitperiod=pow(M*G/pow(d,3),1/2)
+        self.orbitperiod=pow(Ms*G/pow(d,3),1/2)
 
-    
-    def tidal_locking(self,t,Ms):
-        """Calcul le période de rotation de la planète selon si l'on considère une rotation synchrone ou libre"""
-        wJ=1.77e-4
+
+    def tidal_locking(self,t:float,Ms:float):
+        """Computes the rotation rate of the planet depending on a synchronized or free rotation. 
+        Depending on the age of the host star, a limit distance is evaluated and if the star-planet distance is lower than that we consider a synchronized orbit, else we assume the rotation rate to be Jupiter's.
+
+            :param t:
+                Age of the host star.
+            :type t:
+                float
+            :param Ms:
+                Mass of the star, normalized to the Sun's.
+            :type Ms:
+                float
+        """
+
+        wJ=1.77e-4 #s-1
         d=self.stardist
         if (t>=1e10):
             Qpp=1e5
@@ -126,49 +145,62 @@ class Planet:
             else: 
                 self.rotrate=1.0
 
-    def magnetosphere_radius(self,Mm,n,veff,T):
+    def calculate_luminosity(self,t:float,table1:pd.DataFrame,table2:pd.DataFrame,table3:pd.DataFrame):
+        """Retourne la liste des luminosités en fonction de l'âge selon la valeur de M"""
+        MJ=1.8986e27
+        M=self.mass
+        print("Mass ds calc",M)
+        if (0.0 <= M <= 5.0):
+            dM=5.0-M
+            if ( dM >= 2.5):
+                L_ind=find_value(t,table1['t_Gyr'])
+                L=table1['L_Ls'][L_ind]
+            else :
+                L_ind=find_value(t,table2['t_Gyr'])
+                L=table2['L_Ls'][L_ind]
+        elif (5.0 <= M <= 10.0) :
+            dM=10.0-M
+            if (dM >= 2.5):
+                L_ind=find_value(t,table2['t_Gyr'])
+                L=table2['L_Ls'][L_ind]
+            else :
+                L_ind=find_value(t,table3['t_Gyr'])
+                L=table3['L_Ls'][L_ind]
+        else :
+            L_ind=find_value(t,table3['t_Gyr'])
+            L=table3['L_Ls'][L_ind]
+        self.luminosity=L
+        return(L)
+
+    def magnetosphere_radius(self,Mm:float,n:float,veff:float,T:float)->float:
+        """Computes the radius of the magnetosphere in planetary radius.
+        If lower than 1, the value is set to 1. A magnetosphere can not be inside the planet.
+        
+            :param Mm:
+                Magnetic moment of the planet.
+            :type Mm:
+                float
+            :param n:
+                Electrons density of the stellar wind at the planet, in m-3.
+            :type n:
+                float
+            :param veff:
+                effective velocity of the electrons of the stellar wind at the planet, in m/s.
+            :type veff:
+                float
+            :param T:
+                Temperature of the corona of the host star, in K.
+            :type T:
+                float"""
         kb=1.380658e-23 #J/K
         mp=1.660540210e-27 #kg
         res1=(mp*n*(veff**2))+(2*n*kb*T)
         Rs=pow((np.pi*4e-7*(1.16**2)*(Mm**2))/(res1*8*(np.pi**2)),1/6)
-        return(Rs)
+        if ((Rs/self.radius) < 1.) :
+            return(1.0)
+        else:
+            return(Rs)
     
-    def magnetic_moment(self, model:str, rc:float, rhoc:float, star:Star):
-        """ Compute the value of the magnetic moment of the planet using the specified model
-        
-        :param model:
-            Name of the model : blackett, busse, mizu_mod, mizu_slow, sano, rein-chris
-        :type model:
-            str
-        :param rc:
-            Radius of the dynamo region [m]
-        :type rc:
-            float
-        :param rhoc:
-            Mass density in the dynamo region [m-3]
-        :type rhoc:
-            float
-        """
-        if (model=='blackett'):
-            Mm=blackett(rc, self.rotrate, rhoc)
-            return(Mm)
-        if (model=='busse'):
-            Mm=Busse(rc, self.rotrate, rhoc)
-            return(Mm)
-        if (model=='mizu_mod'):
-            Mm=Mizu_moderate(rc,self.rotrate,rhoc,1.0)
-            return(Mm)
-        if (model=='mizu_slow'):
-            Mm=Mizu_slow(rc, self.rotrate,rhoc,1.0)
-        if (model=='sano') :
-            Mm=sano(rc, self.rotrate,rhoc)
-            return(Mm)
-        if (model=='rein-chris'):
-            table_1MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ.csv', delimiter=';')
-            table_5MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ.csv', delimiter=';')
-            table_10MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ.csv', delimiter=';')
-            Mm=Reiners_Christensen(self,star,table_1MJ,table_5MJ,table_10MJ)
-            return(Mm)
 
 
         

@@ -14,14 +14,12 @@ from math import *
 import pandas as pd
 
 # Class
-from classPlanet import *
-from classStar import *
-
-
-# Modelisation modules
-
-from dynamo import *
+from Planet import *
+from Star import *
+from Target import *
+from DynamoRegion import *
 from magneticmoment import *
+from StellarWind import *
 
 ###Physical constant
 

@@ -20,7 +20,13 @@ from Star import *
 
 from calc_tools import *
 
-def masslossrate(t:float,R:float):
+
+# --------------------------------------------------------- #
+# ------------ Useful functions for the class ------------- #
+# --------------------------------------------------------- #
+
+
+def masslossrate(t:float,R:float)->float:
     """ Compute the stellar mass loss rate normalized to the sun
         :param t:
             stellar age [yr]
@@ -40,7 +46,7 @@ def masslossrate(t:float,R:float):
     return(M)
 
 
-def parker_velocity(v:float,d:float,rc:float, vc:float):
+def parker_velocity(v:float,d:float,rc:float, vc:float)->float:
     """Expression of f(v(d))=0 based on Parker's model for SW
         :param v:
             velocity [m/s]
@@ -62,7 +68,7 @@ def parker_velocity(v:float,d:float,rc:float, vc:float):
     res=((v/vc)**2)-log((v/vc)**2)-log((d/rc)**4)-(4.0/(d/rc))+3.0 
     return(res)
 
-def parker_velocity_p(v:float,d:float,rc:float,vc:float):
+def parker_velocity_p(v:float,d:float,rc:float,vc:float)->float:
     """Expression of df(v(d))/dv based on Parker's model for SW
         :param v:
             velocity [m/s]
@@ -84,9 +90,9 @@ def parker_velocity_p(v:float,d:float,rc:float,vc:float):
     res=(2*v/(vc**2))-(2/v)
     return(res)
 
-def calc_temperature(M:float,t:float):
+def calc_temperature(M:float,t:float)->float:
     """ Adjust the temperature of the corona for a star of given age.
-    
+        
         :param M:
             Mass of the star in kg
         :type M:
@@ -153,9 +159,7 @@ def calc_temperature(M:float,t:float):
             T=Tini
     return(T)
 
-
-
-def parker(pla:Planet,star:Star):
+def parker(star:Star,pla:Planet):
     """Compute the velocity and the density of the SW using the Parker model
         :param pla:
             The planet studied
@@ -179,7 +183,7 @@ def parker(pla:Planet,star:Star):
     vc=sqrt(2*kb*T/mp)
     rc=mp*G*M/(4*kb*T)
     vorb=sqrt(G*M/d)
-    
+        
     #Warning messages
     if (d<0.01*dua ) :
         print('Warning : The Parker model has not been verified for such star-planet distances')
@@ -205,17 +209,17 @@ def parker(pla:Planet,star:Star):
             v=optimize.newton(parker_velocity,10e3,parker_velocity_p, args=(d,rc,vc), maxiter=50)
         except (ZeroDivisionError, RuntimeError):
             v=0.
-    
+        
     veff=sqrt((v**2)+(vorb**2))
     Mls=masslossrate(t,R)
     n=Mls/(4*np.pi*(d**2)*v*mp)
-    return(v,veff,n,T)
+    return(veff,n,T)
 
 
 def CME(star:Star, pla:Planet):
     """ Evaluates if it is necessary to take into account CME in the stellar wind model.
         Returns a tuple containing the speed, the effective speed and the density of the stellar wind.   
-            
+                
         :param star:
             Star of the system considered
         :type star:
@@ -235,5 +239,83 @@ def CME(star:Star, pla:Planet):
     ns=nso*pow((d/dua),-2.99)
     v=5.26e5
     veff=sqrt((v**2)+(star.mass*G/d))
-    return(v,veff,ns,T)
+    return(veff,ns,T)
+
+
+
+# ============================================================= #
+# ------------------------ StellarWind ------------------------ #
+# ============================================================= #
+
+class StellarWind:
+
+    def __init__(self,ne:float,ve:float,Tcor:float,Bsw:float=None):
+        """ Creates a stellar wind object.
+        
+            :param ne:
+                Electron density in the stellar wind, in m-3.
+            :type ne:
+                float
+            :param ve:
+                Effective velocity of the stellar wind, in m.s-1.
+            :type ve:
+                float
+            :param Tcor:
+                Coronal temperature, in K.
+            :type Tcor:
+                float
+            :param Bsw:
+                Magnetic field of the stellar wind, in T.
+            :type Bsw:
+                float
+        """
+    
+        self.density=ne
+        self.effective_velocity=ve
+        self.corona_temperature=Tcor
+        self.mag_field=Bsw
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    
+    def talk(self):
+        print("Electron density : ", self.density, " m-3")
+        print("Effective velocity of the stellar wind : ",self.effective_velocity," m.s-1")
+        print("Temperature of the corona : ",self.corona_temperature*1e-6," MK")
+        print("Stellar wind magnetic field : ", self.mag_field," T")
+
+    @property
+    def mag_field(self):
+        return self.mag_field
+    @mag_field.setter
+    def mag_field(self):
+        self.mag_field=1.0
+
+    
+
+    @classmethod
+    def from_system(cls,star:Star,planet:Planet):
+        """ Creates a StellarWind object corresponding to the given Star-Planet system.
+            :param star:
+                The star of the system.
+            :type star:
+                Star
+            :param planet:
+                The planet of the system.
+            :type planet:
+                Planet
+        """
+
+        dua=1.49597870700e11 #m
+        if (planet.stardist <= 0.1*dua):
+            ve,ne,T=CME(star,planet)
+            return cls(ve,ne,T)
+        else:
+            ve,ne,T=parker(star,planet)
+            return cls(ve,ne,T)
+
+
+
+
+
 

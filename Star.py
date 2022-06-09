@@ -11,7 +11,14 @@ import scipy.io as sio
 from scipy.io import readsav
 import numpy as np
 from math import *
+
+
 from calc_tools import *
+
+
+# ============================================================= #
+# ---------------------------- Star --------------------------- #
+# ============================================================= #
 
 
 class Star:
@@ -38,30 +45,58 @@ class Star:
     :type L:
         float
     """
-    def __init__(self,name:str,M:float,R:float,t:float,Bsw,L:float):
+    def __init__(self,name:str,M:float,R:float,t:float,s:float,B:float,L:float):
+
+        """ Creates a Star object.
+            :param name:
+                Name of the star.
+            :type name:
+                str
+            :param M:
+                Star mass, in Sun masses.
+            :type M:
+                float
+            :param R:
+                Star radius, in Sun radiuses.
+            :type R:
+                float
+            :param t:
+                Star age, in yr.
+            :type t:
+                float
+            :param s:
+                Distance from Earth, in pc.
+            :type s:
+                float
+            :param B:
+                Star magnetic field, in T. Either known from litterature or computed.
+            :type B:
+                float
+            :param L:
+                Star luminosity, normalized to the Sun.
+            :type L:
+                float
+        """
 
         self.name=name
         self.mass=M
         self.radius=R
         self.age=t
-        self.Bsw=1
+        self.obs_dist=s
+        self.magfield=B
         self.luminosity=L
-                
-    def affiche(self):
+        
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+
+    def talk(self):
         print("Name : ", self.name)
         print("Mass : ", self.mass, " MS")
         print("Radius : ", self.radius, " RS")
-        print("Age : ", self.age, " yS")
-        print("SW magnetic field ", self.Bsw, 'BswS')
+        print("Age : ", self.age*1e-9, " Gyr")
+        print("Distance to Earth : ", self.obs_dist, " pc")
+        print("SW magnetic field :  ", self.magfield, ' T')
         print("Luminosity : ", self.luminosity, 'LS')
-    
-    def affiche_units(self):
-        print("Name : ", self.name)
-        print("Mass : ", self.mass, " kg")
-        print("Radius : ", self.radius, " m")
-        print("Age : ", self.age, " y")
-        print("SW magnetic field : ", self.Bsw, 'T')
-        print("Luminosity : ", self.luminosity, 'W')
 
     @property
     def calculate_luminosity(self):
@@ -78,24 +113,30 @@ class Star:
         self.luminosity=res1/res2
 
     @property
-    def calculate_Bsw(self):
-        
-        self.Bsw=1
+    def calculate_B(self):     
+        self.B=1
     
     # Methods
 
-    def normalize_mass(self, starnorm):
-        M=self.mass/starnorm.mass
+    def unnormalize_mass(self)->float:
+        MS=1.989e30 #kg
+        M=self.mass*MS
         return(M)
-    def normalize_radius(self, starnorm):
-        R=self.radius/starnorm.radius
+    def unnormalize_radius(self)->float:
+        RS=6.96342e8 #m
+        R=self.radius*RS
         return(R)
-    def normalize_age(self, starnorm):
-        A=self.age/starnorm.age
-        return(A)
-    def normalize_Bsw(self, starnorm):
-        Bsw=self.Bsw/starnorm.Bsw
-        return(Bsw)
-    def normalize_luminosity(self, starnorm):
-        L=self.luminosity/starnorm.luminosity
+    def unnormalize_luminosity(self)->float:
+        LS=3.826e26 #W
+        L=self.luminosity*LS
         return(L)
+
+    def alfven_radius(self,d:float)->float:
+        """ Computes the Alfvén radius of the star.
+            :param d:
+                Distance between the star and the planet, in m.
+            :type d:
+                float
+        """
+
+        return(Ra)
