@@ -89,7 +89,7 @@ class DynamoRegion:
     # ------------------------ Methods ------------------------ #
 
     @classmethod
-    def from_planet(planet:Planet,rhocrit:float):
+    def from_planet(cls,planet:Planet,rhocrit:float):
         """Creates a DynamoRegion object associated to a given Planet object.
             :param planet:
                 Planet of the system.

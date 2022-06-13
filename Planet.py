@@ -13,8 +13,6 @@ from scipy.io import readsav
 import numpy as np
 from math import *
 
-
-from magneticmoment import *
 from calc_tools import *
 
 
@@ -62,7 +60,7 @@ class Planet:
         self.mass=Mp
         self.radius=Rp
         self.orbitperiod=wo
-        self.rotrate= tidal_locking
+        self.rotrate=w
         self.stardist=d
         self.sm_axis=a    
 

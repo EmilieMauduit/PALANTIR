@@ -6,17 +6,25 @@ Created on Thu Dec  2 15:46:05 2021
 @author: emauduit
 """
 
+from logging import raiseExceptions
+from multiprocessing.dummy import Value
 import numpy as np
+import pandas as pd
 from math import *
+from typing import List
 
 from Planet import *
 from Star import *
+from DynamoRegion import *
 
 from calc_tools import *
 
+# --------------------------------------------------------- #
+# ------------ Useful functions for the class ------------- #
+# --------------------------------------------------------- #
 
 
-#### Modèles du moment dipolaire magnétique
+#Modèles du moment dipolaire magnétique
 
 #Scale laws
 
@@ -81,45 +89,92 @@ def Reiners_Christensen(planet,star,jup,sol,table1,table2,table3, normalize=0):
     return(res)
 
 
-def magnetic_moment(self, model:str, rc:float, rhoc:float, star:Star):
-    """ Compute the value of the magnetic moment of the planet using the specified model
-        
-    :param model:
-        Name of the model : blackett, busse, mizu_mod, mizu_slow, sano, rein-chris
-    :type model:
-        str
-    :param rc:
-        Radius of the dynamo region [m]
-    :type rc:
-        float
-    :param rhoc:
-        Mass density in the dynamo region [m-3]
-    :type rhoc:
-        float
-    """
-    if (model=='blackett'):
-        Mm=blackett(rc, self.rotrate, rhoc)
-        return(Mm)
-    if (model=='busse'):
-        Mm=Busse(rc, self.rotrate, rhoc)
-        return(Mm)
-    if (model=='mizu_mod'):
-        Mm=Mizu_moderate(rc,self.rotrate,rhoc,1.0)
-        return(Mm)
-    if (model=='mizu_slow'):
-        Mm=Mizu_slow(rc, self.rotrate,rhoc,1.0)
-    if (model=='sano') :
-        Mm=sano(rc, self.rotrate,rhoc)
-        return(Mm)
-    if (model=='rein-chris'):
-        table_1MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ.csv', delimiter=';')
-        table_5MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ.csv', delimiter=';')
-        table_10MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ.csv', delimiter=';')
-        Mm=Reiners_Christensen(self,star,table_1MJ,table_5MJ,table_10MJ)
-        return(Mm)
-
 
 # ============================================================= #
 # ----------------------- MagneticMoment ---------------------- #
 # ============================================================= #
 
+class MagneticMoment:
+
+    def __init__(self, models: List[str],Mm:float,Rs:float):
+        """ Creates a MgneticMoment object, characterized by a value of the magnetic moment and the corresponding radius of the magnetosphere.
+        
+            :param models:
+                List of the models used to compute the magnetic moment. List of the names : 'blackett', 'busse', 'mizu_mod', 'mizu_slow', 'sano', 'rein-chris'.
+            :type models:
+                list[str]
+            :param Mm:
+                Magnetic moment, in MmJ
+            :type Mm:
+                float
+            :param Rs:
+                Radius of the magnetosphere, in Rp.
+            :type Rs:
+                float
+        """
+
+        self.models=models
+        self.mag_moment=Mm
+        self.mag_radius=Rs
+
+    
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+
+    def magnetic_moment(self, dynamo: DynamoRegion, planet:Planet,star:Star,Mmean :bool = True, Mmax :bool=False):
+
+        """ Creates a MagneticMoment object associated to a given dynamo region.
+            :param dynamo:
+                Dynamo region from which the magnetic moment willbe computed
+            :type dynamo:
+                DynamoRegion
+            :param planet:
+                The planet in consideration.
+            :type planet:
+                Planet
+            :param star:
+                The host star of the system.
+            :type star:
+                Star
+            :param Mmean:
+                Default is True. If you give more than one model, the mean value of the moments will be returned.
+            :type Mmean:
+                bool
+            :param Mmax:
+                Default is False. If you give more than one model, the maximum value of the moments will be returned.
+            :type Mmax:
+                bool
+        """
+        M=[]
+
+        for model in self.models :
+            if (model=='blackett'):
+                M.append(blackett(dynamo.radius, planet.rotrate, dynamo.density))
+            if (model=='busse'):
+                M.append(Busse(dynamo.radius, planet.rotrate, dynamo.density))
+            if (model=='mizu_mod'):
+                M.append(Mizu_moderate(dynamo.radius,planet.rotrate,dynamo.density,1.0))
+            if (model=='mizu_slow'):
+                M.append(Mizu_slow(dynamo.radius,planet.rotrate,dynamo.density,1.0))
+            if (model=='sano') :
+                M.append(sano(dynamo.radius,planet.rotrate,dynamo.density))
+            if (model=='rein-chris'):
+                table_1MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ.csv', delimiter=';')
+                table_5MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ.csv', delimiter=';')
+                table_10MJ=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ.csv', delimiter=';')
+                M.append(Reiners_Christensen(self,star,table_1MJ,table_5MJ,table_10MJ))
+        
+        if Mmean and not Mmax :
+            self.mag_moment=np.mean(M)
+        elif Mmax and not Mmean :
+            self.mag_moment=np.max(M)
+        elif not Mmean and not Mmax :
+            self.mag_moment=M[0]
+        else :
+            print('toto')
+   #     raise ValueError(
+              #''  
+              #f'Wrong value for Mmean :{Mmean} or Mmax : {Mmax} only one can be set to True'
+            #)
+
+    

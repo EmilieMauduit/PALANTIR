@@ -22,29 +22,7 @@ from calc_tools import *
 
 
 class Star:
-    """ Class to handle Star object.
-
-    :param name:
-        Name of the star used in the SIMBAD catalog.
-    :type name:
-        str
-    :param M:
-        Star mass in Solar masses
-    :type M:
-        float
-    :param R:
-        Star radius in Solar radius
-    :type R:
-        float
-    :param t:
-        Star age in yr
-    :type t:
-        float
-    :param L:
-        Star luminosity in Solar luminosity
-    :type L:
-        float
-    """
+    
     def __init__(self,name:str,M:float,R:float,t:float,s:float,B:float,L:float):
 
         """ Creates a Star object.

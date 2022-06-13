@@ -18,7 +18,7 @@ from Planet import *
 from Star import *
 from Target import *
 from DynamoRegion import *
-from magneticmoment import *
+from MagneticMoment import *
 from StellarWind import *
 
 ###Physical constant
