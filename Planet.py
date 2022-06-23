@@ -3,7 +3,7 @@
 """
 Created on Fri Dec  3 09:53:23 2021
 
-@author: emauduit
+@author: Emilie Mauduit
 """
 
 
@@ -72,14 +72,15 @@ class Planet:
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
 
-    def talk(self):
-        print("Name : ", self.name)
-        print("Mass : ", self.mass, " Mj")
-        print("Radius : ", self.radius, " Rj")
-        print("Rotation rate : ", self.rotrate, " wj")
-        print("Orbital period : ", self.orbitperiod, "woj")
-        print("Distance to host star : ", self.stardist, " AU")
-        print("Semi-major axis : ", self.sm_axis, " AU")
+    def talk(self, talk: bool):
+        if talk:
+            print("Name : ", self.name)
+            print("Mass : ", self.mass, " Mj")
+            print("Radius : ", self.radius, " Rj")
+            print("Rotation rate : ", self.rotrate, " wj")
+            print("Orbital period : ", self.orbitperiod, "woj")
+            print("Distance to host star : ", self.stardist, " AU")
+            print("Semi-major axis : ", self.sm_axis, " AU")
 
     def unnormalize_mass(self):
         mass_jup = 1.8986e27  # kg

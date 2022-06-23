@@ -3,7 +3,7 @@
 """
 Created on Fri Dec  3 10:36:08 2021
 
-@author: emauduit
+@author: Emilie Mauduit
 """
 
 import numpy as np
@@ -74,7 +74,7 @@ def rhodyn(Mp, Rp, rc):
 
 
 class DynamoRegion:
-    def __init__(self, rhocrit: float, rhoc: float, Rc: float):
+    def __init__(self, rhocrit: float, rhoc: float, rc: float):
         """Creates a DynamoRegion object.
         :param rhocrit:
             Critical density, corresponds to the transition between the molecular phase and the liquid metallic phase.
@@ -91,10 +91,20 @@ class DynamoRegion:
         """
         self.critical_density = rhocrit
         self.density = rhoc
-        self.radius = Rc
+        self.radius = rc
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+
+    def talk(self, talk: bool):
+        if talk:
+            print(
+                "Critical transition density, rho_crit=",
+                self.critical_density,
+                " g.cm-3.",
+            )
+            print("Density of the dynamo region, rhoc=", self.density, " g.cm-3.")
+            print("Radius of the dynamo region, Rc=", self.radius, " m.")
 
     @classmethod
     def from_planet(cls, planet: Planet, rhocrit: float):
@@ -108,6 +118,6 @@ class DynamoRegion:
         :type rhocrit:
             float
         """
-        Rc = LaneEmden(planet.mass, planet.radius, rhocrit)
-        rhoc = rhodyn(planet.mass, planet.radius, Rc)
+        Rc = LaneEmden(planet.unnormalize_mass(), planet.unnormalize_radius(), rhocrit)
+        rhoc = rhodyn(planet.unnormalize_mass(), planet.unnormalize_radius(), Rc)
         return cls(rhocrit, rhoc, Rc)

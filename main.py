@@ -3,21 +3,22 @@
 """
 Created on Fri Dec  3 10:09:06 2021
 
-@author: emauduit
+@author: Emilie Mauduit
 """
 
+# --------------------------------------------------------- #
+# ------------------------ imports ------------------------ #
+
 import pandas as pd
-
-# Class
-
 from star import Star
 from planet import Planet
-from dynamo_region import DynamoRegion, LaneEmden, rhodyn
-from magnetic_moment import MagneticMoment, blackett, curtis, Reiners_Christensen, sano
+from dynamo_region import DynamoRegion
+from magnetic_moment import MagneticMoment
 from stellar_wind import StellarWind
+from target import Target
 
-###Physical constant
-
+# --------------------------------------------------------- #
+# ------------------- Physical constants ------------------ #
 
 MS = 1.989e30  # kg
 RS = 6.96342e8  # m
@@ -38,69 +39,123 @@ rc = 0.85 * RJ
 rhoc = 1800  # kg/m3
 
 
-# Configuration settings input
+# --------------------------------------------------------- #
+# -------------- Configuration settings input ------------- #
 
 config = pd.read_csv(
     r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/parametres.csv",
     delimiter=";",
 )
 
+# Setting the models to use
 
-# Data input
+dynamo_density_models = []
+magnetic_moment_models = []
+rho_crit = config.value[8]
 
+for i in range(6):
+    if config.value[i] == 1:
+        magnetic_moment_models.append(config.setting[i])
+for i in range(6, 8):
+    if config.value[i] == 1:
+        dynamo_density_models.append(config.setting[i])
 
-# Main
-
-sol = Star("Soleil", MS, RS, AS, BSsw, LS)
-# sol.affiche()
-jup = Planet("Jupiter", MJ, RJ, wJ)
-# jup.affiche()
-
-
-# Calcul du rayon critique de la région dynamo
-
-rc1, rc2 = LaneEmden(jup.mass, jup.radius)
-
-rhoc1 = rhodyn(jup.mass, jup.radius, rc1)
-rhoc2 = rhodyn(jup.mass, jup.radius, rc2)
-
-print("Rho dynamo : rhoc1= ", rhoc1, " ,rhoc2= ", rhoc2)
-
-
-# Calcul du moment magnétique
-
-if config.Value[0] == 1:
-    M1_bla = blackett(rc1, wJ, rhoc1)
-    M2_bla = blackett(rc2, wJ, rhoc2)
-    print("Blackett : M1= ", M1_bla, " T, M2= ", M2_bla, " T")
+if config.value[9] == 1:
+    talk = True
 else:
-    M1_bla = 0
-    M2_bla = 0
+    talk = False
 
-if config.Value[1] == 1:
-    M1_curt = curtis(rc1, wJ, rhoc1, E)
-    M2_curt = curtis(rc2, wJ, rhoc2, E)
-    print("Curtis : M1= ", M1_curt, " T, M2= ", M2_curt, " T")
-else:
-    M1_curt = 0
-    M2_curt = 0
+# Criterions for target selection
 
-if config.Value[2] == 1:
-    M_RC = Reiners_Christensen(sol, jup, sol, jup)
-    print("Reiners-Christensen : M=", M_RC, " T")
-else:
-    M_RC = 0
-
-if config.Value[3] == 1:
-    M1_sa = sano(rc1, wJ, rhoc1)
-    M2_sa = sano(rc2, wJ, rhoc2)
-    print("Sano : M1= ", M1_sa, " T, M2= ", M2_sa, " T")
-else:
-    M1_sa = 0
-    M2_sa = 0
+selection_config = pd.read_csv(
+    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/selection.csv",
+    delimiter=";",
+)
 
 
-# print(rc1/jup.radius, rc2/jup.radius)
+# --------------------------------------------------------- #
+# ---------------------- Data input ----------------------- #
 
-# earth=Planet('Earth', ME, RE, wE)
-# earth.affiche()
+# data =pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/exoplanet.eu_catalog.csv')
+test_targets = pd.DataFrame(
+    {
+        "star_radius": [1.0, 1.0, 1.18, 1.12, 1.48, 1.48, 1.48],
+        "star_mass": [1.0, 1.0, 1.06, 1.1, 1.42, 1.42, 1.42],
+        "star_age": [4.6, 4.6, 5.5, 3.0, 1.0, 1.0, 1.0],
+        "planet_radius": [1.0, 0.84, 1.42, 1.25, 1.2, 1.58, 1.48],
+        "planet_mass": [1.0, 0.3, 0.69, 1.18, 4.4, 7.0, 10.0],
+        "planet_orbital_frequency": [1.0, 0.93, 0.12, 0.34, 0.12, 0.12, 0.12],
+        "planet_distance": [5.2, 9.5, 0.045, 0.0225, 0.0489, 0.0489, 0.0489],
+    },
+    index=[
+        "Jupiter",
+        "Saturn",
+        "HD 209458b",
+        "OGLE-TR-56b",
+        "T-bootes (light)",
+        "T-bootes (medium)",
+        "T-bootes (heavy)",
+    ],
+)
+
+
+# --------------------------------------------------------- #
+# ------------------------ Main --------------------------- #
+# --------------------------------------------------------- #
+
+# sol = Star(name="Soleil",M=MS,R=RS,t=AS,s=1.0,B=BSsw,L=LS)
+# sol.talk(talk=talk)
+# jup = Planet(name="Jupiter", mass=MJ,radius=RJ,distance=1.0,axis=1.0,worb=wJ,wrot=wJ)
+# jup.talk(talk=talk)
+
+selected_targets = []
+
+for target in test_targets.itertuples():
+    planet = Planet(
+        name=target.Index,
+        mass=target.planet_mass,
+        radius=target.planet_radius,
+        distance=target.planet_distance,
+        axis=1.0,
+        worb=target.planet_orbital_frequency,
+    )
+    star = Star(
+        name="star",
+        M=target.star_mass,
+        R=target.star_radius,
+        t=target.star_age,
+        s=1.0,
+        B=1.0,
+        L=1.0,
+    )
+    planet.tidal_locking(age=star.age, star_mass=star.mass)
+    planet.talk(talk=talk)
+    star.talk(talk=talk)
+    dyn_region = DynamoRegion.from_planet(planet=planet, rhocrit=rho_crit)
+    dyn_region.talk(talk=talk)
+    stellar_wind = StellarWind.from_system(star=star, planet=planet)
+    stellar_wind.talk(talk=talk)
+    magnetic_moment = MagneticMoment(models=magnetic_moment_models, Mm=1.0, Rs=1.0)
+    magnetic_moment.magnetic_moment(dynamo=dyn_region, planet=planet, star=star)
+    magnetic_moment.magnetosphere_radius(stellar_wind=stellar_wind)
+    magnetic_moment.talk(talk=talk)
+    target = Target(
+        name=planet.name,
+        mag_field={"planet": planet, "magnetic_moment": magnetic_moment},
+        flux={
+            "planet": planet,
+            "star": star,
+            "magnetic_moment": magnetic_moment,
+            "stellar_wind": stellar_wind,
+        },
+        pow_received={
+            "planet": planet,
+            "magnetic_moment": magnetic_moment,
+            "stellar_wind": stellar_wind,
+        },
+        Pem=1.0,
+        fmax_star=1.0,
+    )
+    target.talk(talk=talk)
+    if target.select_target():
+        selected_targets.append(target)

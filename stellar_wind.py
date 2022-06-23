@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 
-@author: emauduit
+@author: Emilie Mauduit
 """
 
 from scipy import optimize
 import numpy as np
-from math import sqrt,log
+from math import sqrt, log
 
 from calc_tools import calc_vsun, calc_nsun
 
@@ -223,6 +223,9 @@ def parker(star: Star, pla: Planet):
         )
     if t < 0.7e9:
         print("Warning : The Parker model is not precise for stars with t<0.7 Gyr")
+
+    # Finding the rigth case
+
     if 0.7e9 <= t <= 1.6e9:
         dlim = 0.01 * dua
     elif 1.6e9 < t < 3.5e9:
@@ -231,7 +234,7 @@ def parker(star: Star, pla: Planet):
         dlim = 0.03 * dua
     else:
         dlim = 0.0
-        print("Star age is too small")
+        print("Star age of " + star.name + " is too small")
 
     if d > dlim:
         try:
@@ -244,6 +247,7 @@ def parker(star: Star, pla: Planet):
             )
         except (ZeroDivisionError, RuntimeError):
             v = 0.0
+            print("")
     else:
         try:
             v = optimize.newton(
@@ -319,23 +323,24 @@ class StellarWind:
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
 
-    def talk(self):
-        print("Electron density : ", self.density, " m-3")
-        print(
-            "Effective velocity of the stellar wind : ",
-            self.effective_velocity,
-            " m.s-1",
-        )
-        print("Temperature of the corona : ", self.corona_temperature * 1e-6, " MK")
-        print("Stellar wind magnetic field : ", self.mag_field, " T")
+    def talk(self, talk: bool):
+        if talk:
+            print("Electron density : ", self.density, " m-3")
+            print(
+                "Effective velocity of the stellar wind : ",
+                self.effective_velocity,
+                " m.s-1",
+            )
+            print("Temperature of the corona : ", self.corona_temperature * 1e-6, " MK")
+            print("Stellar wind magnetic field : ", self.mag_field, " T")
 
-    @property
-    def mag_field(self):
-        return self.mag_field
+    # @property
+    # def mag_field(self):
+    #   return self.mag_field
 
-    @mag_field.setter
-    def mag_field(self):
-        self.mag_field = 1.0
+    # @mag_field.setter
+    # def mag_field(self):
+    # self.mag_field = 1.0
 
     @classmethod
     def from_system(cls, star: Star, planet: Planet):

@@ -3,7 +3,7 @@
 """
 Created on Fri Dec  3 14:02:05 2021
 
-@author: emauduit
+@author: Emilie Mauduit
 """
 
 from math import pow
@@ -52,7 +52,7 @@ class Star:
         self.name = name
         self.mass = M
         self.radius = R
-        self.age = t
+        self.age = t * 1e9
         self.obs_dist = s
         self.magfield = B
         self.luminosity = L
@@ -60,14 +60,15 @@ class Star:
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
 
-    def talk(self):
-        print("Name : ", self.name)
-        print("Mass : ", self.mass, " MS")
-        print("Radius : ", self.radius, " RS")
-        print("Age : ", self.age * 1e-9, " Gyr")
-        print("Distance to Earth : ", self.obs_dist, " pc")
-        print("SW magnetic field :  ", self.magfield, " T")
-        print("Luminosity : ", self.luminosity, "LS")
+    def talk(self, talk: bool):
+        if talk:
+            print("Name : ", self.name)
+            print("Mass : ", self.mass, " MS")
+            print("Radius : ", self.radius, " RS")
+            print("Age : ", self.age * 1e-9, " Gyr")
+            print("Distance to Earth : ", self.obs_dist, " pc")
+            print("SW magnetic field :  ", self.magfield, " T")
+            print("Luminosity : ", self.luminosity, "LS")
 
     @property
     def calculate_luminosity(self):
