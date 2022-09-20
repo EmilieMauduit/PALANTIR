@@ -112,6 +112,10 @@ class Star:
         L = self.luminosity * LS
         return L
 
+    def obs_dist_meters(self) -> float :
+        pc=3.08568e16 #m
+        return self.obs_dist * pc
+
     def alfven_radius(self, d: float) -> float:
         """Computes the Alfvén radius of the star.
         :param d:

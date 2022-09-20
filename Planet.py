@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from math import pow
 
-from calc_tools import synchro_dist, find_value
+from calc_tools import synchro_dist
 
 
 # ============================================================= #
@@ -164,59 +164,17 @@ class Planet:
         # MJ = 1.8986e27
         M = self.mass
         print("Mass ds calc", M)
-        if 0.0 <= M <= 5.0:
-            dM = 5.0 - M
-            if dM >= 2.5:
-                L_ind = find_value(age, table1["t_Gyr"])
-                L = table1["L_Ls"][L_ind]
-            else:
-                L_ind = find_value(age, table2["t_Gyr"])
-                L = table2["L_Ls"][L_ind]
-        elif 5.0 <= M <= 10.0:
-            dM = 10.0 - M
-            if dM >= 2.5:
-                L_ind = find_value(age, table2["t_Gyr"])
-                L = table2["L_Ls"][L_ind]
-            else:
-                L_ind = find_value(age, table3["t_Gyr"])
-                L = table3["L_Ls"][L_ind]
-        else:
-            L_ind = find_value(age, table3["t_Gyr"])
-            L = table3["L_Ls"][L_ind]
-        self.luminosity = L
-        return L
-
-    def magnetosphere_radius(
-        self, mag_moment: float, density: float, veff: float, temperature: float
-    ) -> float:
-        """Computes the radius of the magnetosphere in planetary radius.
-        If lower than 1, the value is set to 1. A magnetosphere can not be inside the planet.
-
-            :param mag_moment:
-                Magnetic moment of the planet.
-            :type mag_moment:
-                float
-            :param density:
-                Electrons density of the stellar wind at the planet, in m-3.
-            :type density:
-                float
-            :param veff:
-                effective velocity of the electrons of the stellar wind at the planet, in m/s.
-            :type veff:
-                float
-            :param temperature:
-                Temperature of the corona of the host star, in K.
-            :type temperature:
-                float"""
-        kb = 1.380658e-23  # J/K
-        mp = 1.660540210e-27  # kg
-        res1 = (mp * density * (veff**2)) + (2 * density * kb * temperature)
-        Rs = pow(
-            (np.pi * 4e-7 * (1.16**2) * (mag_moment**2))
-            / (res1 * 8 * (np.pi**2)),
-            1 / 6,
+        L1 = np.interp(
+            np.log10(age * 1e-9), table1["log(t) (Gyr)"], table1["log(L/Ls)"]
         )
-        if (Rs / self.radius) < 1.0:
-            return 1.0
-        else:
-            return Rs
+        L2 = np.interp(
+            np.log10(age * 1e-9), table2["log(t) (Gyr)"], table2["log(L/Ls)"]
+        )
+        L3 = np.interp(
+            np.log10(age * 1e-9), table3["log(t) (Gyr)"], table3["log(L/Ls)"]
+        )
+        luminosities = [L1, L2, L3]
+        masses = np.log10([1.0, 5.0, 10.0])
+        L = np.interp(np.log10(M), masses, luminosities)
+        self.luminosity = 10**L
+        return 10**L

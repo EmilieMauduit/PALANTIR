@@ -26,7 +26,7 @@ def masslossrate(t: float, R: float) -> float:
     :type t:
         float
     :param R:
-        radius of the planet [m]
+        radius of the planet [R_sun]
     :type R:
         float
     """
@@ -40,7 +40,7 @@ def masslossrate(t: float, R: float) -> float:
 
 
 def parker_velocity(v: float, d: float, rc: float, vc: float) -> float:
-    """Expression of f(v(d))=0 based on Parker's model for SW
+    """Expression of f(v(d))=0 based on Parker's model for SW.
     :param v:
         velocity [m/s]
     :type v:
@@ -69,7 +69,7 @@ def parker_velocity(v: float, d: float, rc: float, vc: float) -> float:
 
 
 def parker_velocity_p(v: float, d: float, rc: float, vc: float) -> float:
-    """Expression of df(v(d))/dv based on Parker's model for SW
+    """Expression of df(v(d))/dv based on Parker's model for SW.
     :param v:
         velocity [m/s]
     :type v:
@@ -111,7 +111,7 @@ def calc_temperature(M: float, t: float) -> float:
     G = 6.6725985e-11  # N.m^2/kg^2
 
     vsun = calc_vsun(t)
-    nsun = calc_nsun(t)
+    # nsun = calc_nsun(t)
 
     Tini = (1e6 * 4.6e9) / (t + 1e9)
     vc = sqrt(2 * kb * Tini / mp)
@@ -191,8 +191,8 @@ def calc_temperature(M: float, t: float) -> float:
     return T
 
 
-def parker(star: Star, pla: Planet):
-    """Compute the velocity and the density of the SW using the Parker model
+def parker(star: Star, planet: Planet):
+    """Compute the velocity and the density of the SW using the Parker model.
     :param pla:
         The planet studied
     :type pla:
@@ -207,17 +207,15 @@ def parker(star: Star, pla: Planet):
     mp = 1.660540210e-27  # kg
     dua = 1.49597870700e11  # m
     G = 6.6725985e-11  # N.m^2/kg^2
-    M = star.mass
-    R = star.radius
-    d = pla.stardist
-    t = star.age
-    T = calc_temperature(M, t)
+    d = planet.stardist
+    t = star.age # yr
+    T = calc_temperature(star.unnormalize_mass(), t)
     vc = sqrt(2 * kb * T / mp)
-    rc = mp * G * M / (4 * kb * T)
-    vorb = sqrt(G * M / d)
+    rc = mp * G * star.unnormalize_mass() / (4 * kb * T)
+    vorb = sqrt(G * star.unnormalize_mass() / (d * dua))
 
     # Warning messages
-    if d < 0.01 * dua:
+    if d < 0.01:
         print(
             "Warning : The Parker model has not been verified for such star-planet distances"
         )
@@ -227,11 +225,11 @@ def parker(star: Star, pla: Planet):
     # Finding the rigth case
 
     if 0.7e9 <= t <= 1.6e9:
-        dlim = 0.01 * dua
+        dlim = 0.01
     elif 1.6e9 < t < 3.5e9:
-        dlim = 0.02 * dua
+        dlim = 0.02
     elif 3.5e9 <= t:
-        dlim = 0.03 * dua
+        dlim = 0.03
     else:
         dlim = 0.0
         print("Star age of " + star.name + " is too small")
@@ -242,7 +240,7 @@ def parker(star: Star, pla: Planet):
                 parker_velocity,
                 350.0e3,
                 parker_velocity_p,
-                args=(d, rc, vc),
+                args=(d * dua, rc, vc),
                 maxiter=50,
             )
         except (ZeroDivisionError, RuntimeError):
@@ -251,18 +249,22 @@ def parker(star: Star, pla: Planet):
     else:
         try:
             v = optimize.newton(
-                parker_velocity, 10e3, parker_velocity_p, args=(d, rc, vc), maxiter=50
+                parker_velocity,
+                10e3,
+                parker_velocity_p,
+                args=(d * dua, rc, vc),
+                maxiter=50,
             )
         except (ZeroDivisionError, RuntimeError):
             v = 0.0
 
     veff = sqrt((v**2) + (vorb**2))
-    Mls = masslossrate(t, R)
-    n = Mls / (4 * np.pi * (d**2) * v * mp)
+    Mls = masslossrate(t, star.radius)
+    n = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
     return (veff, n, T)
 
 
-def CME(star: Star, pla: Planet):
+def CME(star: Star, planet: Planet):
     """Evaluates if it is necessary to take into account CME in the stellar wind model.
     Returns a tuple containing the speed, the effective speed and the density of the stellar wind.
 
@@ -276,15 +278,15 @@ def CME(star: Star, pla: Planet):
         Planet
     """
     T = 2e6  # K
-    d = pla.stardist
     dua = 1.49597870700e11  # m
+    d = planet.stardist * dua
     G = 6.6725985e-11  # N.m^2/kg^2
-    nwo = 4.88e6
+    # nwo = 4.88e6
     nso = 7.1e6
-    nw = nwo * pow((d / dua), -2.31)
+    # nw = nwo * pow((d / dua), -2.31)
     ns = nso * pow((d / dua), -2.99)
     v = 5.26e5
-    veff = sqrt((v**2) + (star.mass * G / d))
+    veff = sqrt((v**2) + (star.unnormalize_mass() * G / d))
     return (veff, ns, T)
 
 
@@ -355,10 +357,9 @@ class StellarWind:
             Planet
         """
 
-        dua = 1.49597870700e11  # m
-        if planet.stardist <= 0.1 * dua:
-            ve, ne, T = CME(star, planet)
-            return cls(ve, ne, T)
-        else:
-            ve, ne, T = parker(star, planet)
-            return cls(ve, ne, T)
+        ve, ne, T = parker(star=star, planet=planet)
+        if planet.stardist <= 0.1:
+            ve_cme, ne_cme, T_cme = CME(star=star, planet=planet)
+            return cls((0.7*ne + 0.3*ne_cme) , (0.7*ve + 0.3*ve_cme), (0.7*T + 0.3*T_cme))
+        else :
+            return cls(ne,ve,T)

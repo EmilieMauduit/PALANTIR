@@ -103,8 +103,12 @@ class DynamoRegion:
                 self.critical_density,
                 " g.cm-3.",
             )
-            print("Density of the dynamo region, rhoc=", self.density, " g.cm-3.")
-            print("Radius of the dynamo region, Rc=", self.radius, " m.")
+            print("Density of the dynamo region, rhoc=", self.density, " rhocJ.")
+            print("Radius of the dynamo region, Rc=", self.radius, " RcJ.")
+
+    def normalize(self, other):
+        self.density = self.density / other.density
+        self.radius = self.radius / other.radius
 
     @classmethod
     def from_planet(cls, planet: Planet, rhocrit: float):

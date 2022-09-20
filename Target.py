@@ -88,7 +88,7 @@ class Target:
             * 2
             * magnetic_moment.mag_moment
             * mag_moment_jup
-            / pow(planet.radius, 3)
+            / pow(planet.unnormalize_radius(), 3)
         )
 
     @property
@@ -118,14 +118,16 @@ class Target:
         standoff_dist_jup = 40.1  # RJ
         density_jup = 1.98e5  # m-3
         veff_jup = 523e3  # m/s
+        dua = 1.49597870700e11  # m
+
         prad = (
             prad_jup
-            * (value["planet"].radius ** 2)
-            * ((value["magnetic_moment"].standoff_dist / standoff_dist_jup) ** 2)
+            * pow(value["planet"].radius,2)
+            * pow((value["magnetic_moment"].normalize_standoff_dist(planet=value["planet"]) / standoff_dist_jup), 2)
             * (value["stellar_wind"].density / density_jup)
-            * ((value["stellar_wind"].effective_velocity / veff_jup) ** 2)
+            * pow(value["stellar_wind"].effective_velocity / veff_jup, 3)
         )
-        self._flux = prad / (1.6 * self.freq_max * (value["star"].obs_dist ** 2))
+        self._flux = prad / (1.6 * self.freq_max * (dua ** 2))
 
     @property
     def pow_received(self):

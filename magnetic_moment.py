@@ -196,6 +196,8 @@ def Reiners_Christensen(
         # print("jup")
     else:
         lum = planet.calculate_luminosity(star.age, table1, table2, table3) / lum_jup
+
+    print("luminosité", planet.name, lum * lum_jup)
     # print("dans RC : L=", L)
 
     a = planet.mass * (lum**2) * pow(planet.radius, 11)
@@ -240,6 +242,12 @@ class MagneticMoment:
             print("Magnetic moment, M=", self.mag_moment, " MmJ.")
             print("Standoff distance, Rs=", self.standoff_dist, " m.")
 
+    def normalize_standoff_dist(self, planet: Planet):
+        return self.standoff_dist / planet.unnormalize_radius()
+
+    def unormalize_magnetic_moment(self, other):
+        return self.mag_moment * other.mag_moment
+
     def magnetic_moment(
         self,
         dynamo: DynamoRegion,
@@ -247,11 +255,12 @@ class MagneticMoment:
         star: Star,
         Mmean: bool = True,
         Mmax: bool = False,
+        normalize: bool = True,
     ):
 
         """Creates a MagneticMoment object associated to a given dynamo region.
         :param dynamo:
-            Dynamo region from which the magnetic moment willbe computed
+            Dynamo region from which the magnetic moment will be computed.
         :type dynamo:
             DynamoRegion
         :param planet:
@@ -273,30 +282,33 @@ class MagneticMoment:
         """
         M = []
 
+        if normalize:
+            wrot = planet.rotrate
+        else:
+            wrot = planet.unnormalize_rotrate()
+
         for model in self.models:
             if model == "blackett":
-                M.append(blackett(dynamo.radius, planet.rotrate, dynamo.density))
+                M.append(blackett(dynamo.radius, wrot, dynamo.density))
             if model == "busse":
-                M.append(Busse(dynamo.radius, planet.rotrate, dynamo.density))
+                M.append(Busse(dynamo.radius, wrot, dynamo.density))
             if model == "mizu_mod":
-                M.append(
-                    Mizu_moderate(dynamo.radius, planet.rotrate, dynamo.density, 1.0)
-                )
+                M.append(Mizu_moderate(dynamo.radius, wrot, dynamo.density, 1.0))
             if model == "mizu_slow":
-                M.append(Mizu_slow(dynamo.radius, planet.rotrate, dynamo.density, 1.0))
+                M.append(Mizu_slow(dynamo.radius, wrot, dynamo.density, 1.0))
             if model == "sano":
-                M.append(sano(dynamo.radius, planet.rotrate, dynamo.density))
+                M.append(sano(dynamo.radius, wrot, dynamo.density))
             if model == "rein-chris":
                 table_1MJ = pd.read_csv(
-                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ.csv",
+                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ_log.csv",
                     delimiter=";",
                 )
                 table_5MJ = pd.read_csv(
-                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ.csv",
+                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ_log.csv",
                     delimiter=";",
                 )
                 table_10MJ = pd.read_csv(
-                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ.csv",
+                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ_log.csv",
                     delimiter=";",
                 )
                 M.append(
@@ -311,10 +323,10 @@ class MagneticMoment:
             self.mag_moment = M[0]
         else:
             raise ValueError(
-                "Wrong value for Mmean :{Mmean} or Mmax : {Mmax} only one can be set to True"
+                "Wrong value for Mmean :{Mmean} or Mmax : {Mmax}, only one can be set to True"
             )
 
-    def magnetosphere_radius(self, stellar_wind: StellarWind):
+    def magnetosphere_radius(self, other, stellar_wind: StellarWind):
         """Computes the radius of the magnetosphere of a given planet.
         :param stellar_wind:
             Stellar wind parameters associated with the system studied.
@@ -323,11 +335,11 @@ class MagneticMoment:
         """
         kb = 1.380658e-23  # J/K
         mp = 1.660540210e-27  # kg
-        res1 = (mp * stellar_wind.density * (stellar_wind.effective_velocity**2)) + (
+        res1 = (mp * stellar_wind.density * pow(stellar_wind.effective_velocity,2)) + (
             2 * stellar_wind.density * kb * stellar_wind.corona_temperature
         )
         self.standoff_dist = pow(
-            (np.pi * 4e-7 * (1.16**2) * (self.mag_moment**2))
+            (np.pi * 4e-7 * (1.16**2) * (self.unormalize_magnetic_moment(other) ** 2))
             / (res1 * 8 * (np.pi**2)),
-            1 / 6,
+            1 / 6
         )
