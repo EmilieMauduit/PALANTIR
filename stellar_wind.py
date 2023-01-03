@@ -358,8 +358,8 @@ class StellarWind:
         """
 
         ve, ne, T = parker(star=star, planet=planet)
-        if planet.stardist <= 0.1:
-            ve_cme, ne_cme, T_cme = CME(star=star, planet=planet)
-            return cls((0.7*ne + 0.3*ne_cme) , (0.7*ve + 0.3*ve_cme), (0.7*T + 0.3*T_cme))
-        else :
-            return cls(ne,ve,T)
+        #if planet.stardist <= 0.1:
+            #ve_cme, ne_cme, T_cme = CME(star=star, planet=planet)
+            #return cls((0.7*ne + 0.3*ne_cme) , (0.7*ve + 0.3*ve_cme), (0.7*T + 0.3*T_cme))
+        #else :
+        return cls(ne,ve,T)

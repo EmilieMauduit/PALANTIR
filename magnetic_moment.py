@@ -272,7 +272,7 @@ class MagneticMoment:
         :type star:
             Star
         :param Mmean:
-            Default is True. If you give more than one model, the mean value of the moments will be returned.
+            Default is True. If you give more than one model, the geometric mean value of the moments will be returned.
         :type Mmean:
             bool
         :param Mmax:
@@ -314,9 +314,11 @@ class MagneticMoment:
                 M.append(
                     Reiners_Christensen(planet, star, table_1MJ, table_5MJ, table_10MJ)
                 )
+        
+        print(M)
 
         if Mmean and not Mmax:
-            self.mag_moment = np.mean(M)
+            self.mag_moment = pow(np.prod(M), 1/len(M))
         elif Mmax and not Mmean:
             self.mag_moment = np.max(M)
         elif not Mmean and not Mmax:

@@ -7,6 +7,22 @@ Created on Fri Dec  3 14:02:05 2021
 """
 
 from math import pow
+import numpy as np
+from typing import List
+
+# --------------------------------------------------------- #
+# ------------ Useful functions for the class ------------- #
+# --------------------------------------------------------- #
+
+
+def TOUT(mass: float):
+    "From Tout et al, 1996"
+    theta2=1.71535900 ; iota2=6.59778800 ; kappa2=10.08855000
+    lambda2=1.01249500 ; mu2=0.07490166 ; nu2=0.01077422
+    eta2=3.08223400 ; omega2=17.84778000 ; pi2=0.00022582
+    a= theta2*pow(mass,2.5) + iota2*pow(mass,6.5) + kappa2*pow(mass,11) + lambda2*pow(mass,19) + mu2*pow(mass,19.5)
+    b= nu2 + eta2*pow(mass,2) + omega2*pow(mass,8.5) + pow(mass,18.5) + pi2*pow(mass,19.5)
+    return a/b
 
 # ============================================================= #
 # ---------------------------- Star --------------------------- #
@@ -15,7 +31,7 @@ from math import pow
 
 class Star:
     def __init__(
-        self, name: str, M: float, R: float, t: float, s: float, B: float, L: float
+        self, name: str, M: float, R: dict, t: float, s: float, B: float = 1.0, L: float = 1.0
     ):
 
         """Creates a Star object.
@@ -59,6 +75,19 @@ class Star:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+
+    @property
+    def radius(self):
+        return self._radius 
+    
+    @radius.setter
+    def radius(self, value : dict):
+        models = value["models"]
+        radius = value["radius"]
+        if np.isnan(radius) :
+            self._radius = self._calculate_radius(models, self.mass)
+        else :
+            self._radius = radius
 
     def talk(self, talk: bool):
         if talk:
@@ -127,3 +156,17 @@ class Star:
         Ra = 1
 
         return Ra
+
+    @staticmethod
+    def _calculate_radius(models : List[str], 
+        mass : float,
+        Rmean : bool = True,
+        Rmax : bool = False ) :
+        R=[]
+        for model in models :
+            if "Tout" in model :
+                R.append(TOUT(mass))
+        if Rmean :
+            return np.mean(R)
+        if Rmax :
+            return np.max(R)

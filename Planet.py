@@ -10,6 +10,7 @@ Created on Fri Dec  3 09:53:23 2021
 import pandas as pd
 import numpy as np
 from math import pow
+from typing import List
 
 from calc_tools import synchro_dist
 
@@ -24,10 +25,10 @@ class Planet:
         self,
         name: str,
         mass: float,
-        radius: float,
+        radius: dict,
         distance: float,
-        axis: float,
-        worb: float,
+        worb: dict,
+        detection_method : str = None,
         wrot: float = None,
     ):
         """Define a planet object. Every parameter must be normalized at Jupiter.
@@ -64,13 +65,43 @@ class Planet:
         self.name = name
         self.mass = mass
         self.radius = radius
+        self.stardist = distance
         self.orbitperiod = worb
         self.rotrate = wrot
-        self.stardist = distance
-        self.sm_axis = axis
+        self.detection_method = detection_method
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+
+    @property
+    def radius(self):
+        return self._radius
+
+    @radius.setter
+    def radius(self, value: dict):
+        #voir pour ajouter plus tard la prise en compte de l'expansion du rayon (3.1 de JMG 2007)
+        models = value["models"]
+        radius = value["radius"]
+        if np.isnan(radius) :
+            self._radius = self._calculate_radius(models, self.mass)
+        else :
+            self._radius = radius
+    @property
+    def orbitperiod(self):
+        return self._orbitperiod
+    @orbitperiod.setter
+    def orbitperiod(self, value :dict):
+        star_mass=value["star_mass"]
+        orbitperiod=value["worb"]
+        dua = 1.49597870700e11  # m
+        if np.isnan(orbitperiod):
+            d = self.stardist * dua
+            G = 6.6725985e-11
+            MS = 1.989e30 
+            wJ = 1.77e-4  # s-1
+            self._orbitperiod = pow(star_mass * MS * G / pow(d, 3), 1 / 2.) / wJ
+        else :
+            self._orbitperiod = orbitperiod 
 
     def talk(self, talk: bool):
         if talk:
@@ -80,7 +111,6 @@ class Planet:
             print("Rotation rate : ", self.rotrate, " wj")
             print("Orbital period : ", self.orbitperiod, "woj")
             print("Distance to host star : ", self.stardist, " AU")
-            print("Semi-major axis : ", self.sm_axis, " AU")
 
     def unnormalize_mass(self):
         mass_jup = 1.8986e27  # kg
@@ -91,24 +121,18 @@ class Planet:
         radius_jup = 71492e3  # m
         radius = self.radius * radius_jup
         return radius
+    
+    def unnormalize_orbital_period(self):
+        worb_jup = 1.77e-4  # s-1
+        worb = self.orbitperiod * worb_jup
+        return worb
 
     def unnormalize_rotrate(self):
         wrot_jup = 1.77e-4  # s-1
         wrot = self.rotrate * wrot_jup
         return wrot
 
-    def calculate_orbitalperiod(self, star_mass: float):
-        """Computes the orbital period of the planet.
-        :param star_mass:
-            Mass of the host star of the planet.
-        :type star_mass:
-            float
-        """
-        d = self.stardist
-        G = 6.6725985e-11
-        self.orbitperiod = pow(star_mass * G / pow(d, 3), 1 / 2)
-
-    def tidal_locking(self, age: float, star_mass: float):
+    def tidal_locking(self, age: float, star_mass: float, Qpp : float = 3.16e5):
         """Computes the rotation rate of the planet depending on a synchronized or free rotation.
         Depending on the age of the host star, a limit distance is evaluated and if the star-planet distance is lower than that we consider a synchronized orbit, else we assume the rotation rate to be Jupiter's.
 
@@ -124,34 +148,11 @@ class Planet:
 
         wrot_J = 1.77e-4  # s-1
         d = self.stardist
-        if age >= 1e10:
-            Qpp = 1e5
-            dsync = synchro_dist(wrot_J, Qpp, 1e10, self.mass, self.radius, star_mass)
-            if d <= dsync:
-                self.rotrate = self.orbitperiod
-            else:
-                self.rotrate = 1.0
-        elif 1e8 <= age <= 1e10:
-            Qppmax = 1e6
-            Qppmin = 1e5
-            dsync_min = synchro_dist(
-                wrot_J, Qppmin, 1e10, self.mass, self.radius, star_mass
-            )
-            dsync_max = synchro_dist(
-                wrot_J, Qppmax, 1e8, self.mass, self.radius, star_mass
-            )
-            ddsync = dsync_max - dsync_min
-            if d <= dsync_min + ddsync:
-                self.rotrate = self.orbitperiod
-            else:
-                self.rotrate = 1.0
+        dsync = synchro_dist(wrot_J, Qpp,age, self.mass, self.radius, star_mass)
+        if d <= dsync :
+            self.rotrate = self.orbitperiod
         else:
-            Qpp = 1e6
-            dsync = synchro_dist(wrot_J, Qpp, 1e8, self.mass, self.radius, star_mass)
-            if d <= dsync:
-                self.rotrate = self.orbitperiod
-            else:
-                self.rotrate = 1.0
+            self.rotrate = self.rotrate
 
     def calculate_luminosity(
         self,
@@ -178,3 +179,21 @@ class Planet:
         L = np.interp(np.log10(M), masses, luminosities)
         self.luminosity = 10**L
         return 10**L
+
+    @staticmethod
+    def _calculate_radius(models : List[str], 
+        mass : float,
+        Rmean : bool = True,
+        Rmax : bool = False ) :
+
+        R=[]
+        for model in models :
+            if "radius_original" in model :
+                Mmax=3.16*1.8986e27  # kg
+                R.append(1.47*pow(mass,1./3)/(1+pow(mass/Mmax,2./3)))
+        if Rmean :
+            print("Rmean : ", R)
+            return np.mean(R)
+        if Rmax :
+            return np.max(R)
+

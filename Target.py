@@ -25,9 +25,8 @@ class Target:
         self,
         name: str,
         mag_field: dict,
-        flux: dict,
+        pow_emission : dict,
         pow_received: dict,
-        Pem: float,
         fmax_star: float,
     ):
         """Creates a Target object.
@@ -64,9 +63,9 @@ class Target:
         self.name = name
         self.mag_field = mag_field
         self._freq_max = None
-        self.flux = flux
+        self.pow_emission = pow_emission
+        self._flux = None
         self.pow_received = pow_received
-        self.pow_emission = Pem
         self.freq_max_star = fmax_star
 
     # --------------------------------------------------------- #
@@ -100,11 +99,11 @@ class Target:
         return self._freq_max
 
     @property
-    def flux(self):
-        return self._flux
+    def pow_emission(self):
+        return self._pow_emission
 
-    @flux.setter
-    def flux(self, value: dict):
+    @pow_emission.setter
+    def pow_emission(self, value: dict):
         if (
             "planet" not in value
             or "star" not in value
@@ -118,16 +117,21 @@ class Target:
         standoff_dist_jup = 40.1  # RJ
         density_jup = 1.98e5  # m-3
         veff_jup = 523e3  # m/s
-        dua = 1.49597870700e11  # m
 
-        prad = (
+        self._pow_emission = (
             prad_jup
             * pow(value["planet"].radius,2)
             * pow((value["magnetic_moment"].normalize_standoff_dist(planet=value["planet"]) / standoff_dist_jup), 2)
             * (value["stellar_wind"].density / density_jup)
             * pow(value["stellar_wind"].effective_velocity / veff_jup, 3)
         )
-        self._flux = prad / (1.6 * self.freq_max * (dua ** 2))
+
+    @property
+    def flux(self):
+        if self._flux is None :
+            dua = 1.49597870700e11  # m
+            self._flux = self._pow_emission / (1.6 * self.freq_max * (dua ** 2))
+        return self._flux
 
     @property
     def pow_received(self):
@@ -135,21 +139,14 @@ class Target:
 
     @pow_received.setter
     def pow_received(self, value: dict):
-        if (
-            "planet" not in value
-            or "magnetic_moment" not in value
-            or "stellar_wind" not in value
-        ):
-            raise KeyError("planet or magnetic_moment or stellar_wind not in value")
-        standoff_dist_jup = 40.1  # RJ
-        density_jup = 1.98e5  # m-3
-        veff_jup = 523e3  # m/s
-        self._pow_received = (
-            (value["planet"].radius ** 2)
-            * ((value["magnetic_moment"].standoff_dist / standoff_dist_jup) ** 2)
-            * (value["stellar_wind"].density / density_jup)
-            * ((value["stellar_wind"].effective_velocity / veff_jup) ** 2)
-        )
+        if ("star" not in value):
+            raise KeyError(
+                "star not in value"
+            )
+
+        pc = 3.08568e16  # m
+        self._pow_received = self._pow_emission / (1.6 * self.freq_max * pow(value['star'].obs_dist * pc, 2))
+
 
     def talk(self, talk: bool):
         if talk:
@@ -160,16 +157,15 @@ class Target:
                 self.freq_max * 1e-6,
                 " MHz",
             )
-            print("Power of the emission at the star : ", self.pow_emission, " W")
-            print(
-                "Power of the emission received at the planet : ",
-                self.pow_received,
-                " W",
+            print("Power of the emission at the star : ", self.pow_emission/1e14, ".10^14 W")
+            print( "Flux of the emission emitted at 1 AU : ",
+                self.flux / 1e-26 / 1e10,
+                ".10^10 Jy ",
             )
             print(
                 "Flux of the emission received by the instrument : ",
-                self.flux,
-                " W.m-2",
+                self._pow_received * 1e3 / 1e-26 ,
+                " mJy ",
             )
             print(
                 "Maximum frequency of the emission at th star : ",
