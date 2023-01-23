@@ -11,8 +11,23 @@ import pytest
 
 
 def test_target():
-    planet = Planet("Jupiter", 1.8986e27, 71492e3, 5.2 * 149597870700, 1.0, 1.77e-4)
-    star = Star("Sun", 1.989e30, 6.96342e8, 4.6, 1.0, 1.0, 3.826e26)
+    planet = Planet(
+        name="Jupiter",
+        mass=1.0,
+        radius={"models": ["original_radius"], "radius": 1.0},
+        distance=1.0,
+        worb={"star_mass": 1.989e30, "worb": 1.0},
+        wrot=1.0,
+    )
+    star = Star(
+        name="Soleil",
+        mass=1.0,
+        radius={"models": ["Tout"], "radius": 1.0},
+        age=4.6,
+        obs_dist=1.0,
+        magfield=1.0,
+    )
+
     dynamo = DynamoRegion.from_planet(planet, rhocrit=700)
 
     assert isinstance(planet, Planet)
@@ -32,27 +47,23 @@ def test_target():
     my_target = Target(
         name=planet.name,
         mag_field={"planet": planet, "magnetic_moment": m_mag},
-        flux={
+        pow_emission={
             "planet": planet,
             "star": star,
             "magnetic_moment": m_mag,
             "stellar_wind": s_wind,
         },
-        pow_received={
-            "planet": planet,
-            "magnetic_moment": m_mag,
-            "stellar_wind": s_wind,
-        },
-        Pem=1.0,
+        pow_received={"star": star},
         fmax_star=1.0,
     )
+
     assert isinstance(my_target, Target)
 
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "magnetic_moment": m_mag,
@@ -63,14 +74,13 @@ def test_target():
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "magnetic_moment": m_mag,
@@ -81,14 +91,13 @@ def test_target():
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "magnetic_moment": m_mag,
@@ -98,14 +107,13 @@ def test_target():
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "stellar_wind": s_wind,
@@ -115,14 +123,13 @@ def test_target():
                 "star": star,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "star": star,
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
@@ -132,14 +139,13 @@ def test_target():
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "star": star,
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
@@ -149,14 +155,13 @@ def test_target():
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "magnetic_moment": m_mag,
@@ -166,14 +171,13 @@ def test_target():
                 "planet": planet,
                 "magnetic_moment": m_mag,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "magnetic_moment": m_mag,
@@ -183,14 +187,13 @@ def test_target():
                 "planet": planet,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )
     with pytest.raises(KeyError):
         my_target = Target(
             name=planet.name,
             mag_field={"planet": planet, "magnetic_moment": m_mag},
-            flux={
+            pow_emission={
                 "planet": planet,
                 "star": star,
                 "magnetic_moment": m_mag,
@@ -200,6 +203,5 @@ def test_target():
                 "magnetic_moment": m_mag,
                 "stellar_wind": s_wind,
             },
-            Pem=1.0,
             fmax_star=1.0,
         )

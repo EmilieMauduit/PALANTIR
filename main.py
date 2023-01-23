@@ -63,12 +63,12 @@ for i in range(6, 8):
     if config.value[i] == 1:
         dynamo_density_models.append(config.setting[i])
 
-for i in range(9,10) :
-    if config.value[i] == 1 :
+for i in range(9, 10):
+    if config.value[i] == 1:
         planet_radius_models.append(config.setting[i])
 
-for i in range(10,11) :
-    if config.value[i] == 1 :
+for i in range(10, 11):
+    if config.value[i] == 1:
         star_radius_models.append(config.setting[i])
 
 if config.value[11] == 1:
@@ -87,8 +87,12 @@ selection_config = pd.read_csv(
 # --------------------------------------------------------- #
 # ---------------------- Data input ----------------------- #
 
-#data =pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/exoplanet.eu_catalog.csv', index_col=0)
-data=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/planet_test.csv',delimiter= ';', index_col=0)
+# data =pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/exoplanet.eu_catalog.csv', index_col=0)
+data = pd.read_csv(
+    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/planet_test.csv",
+    delimiter=";",
+    index_col=0,
+)
 # test_targets = pd.DataFrame(
 #      {
 #          "star_radius": [1.0, 1.0, 1.18, 1.12, 1.48, 1.48, 1.48,0.683,0.805],
@@ -122,10 +126,22 @@ data=pd.read_csv(r'/Users/emauduit/Documents/Thèse/Sélection des cibles/Prog
 # ------------------------ Main --------------------------- #
 # --------------------------------------------------------- #
 
-sun = Star(name="Soleil", M=1.0, R={ "models" : star_radius_models, "radius" : 1.0}, t=AS, s=1.0, B=BSsw, L=1.0)
+sun = Star(
+    name="Soleil",
+    M=1.0,
+    R={"models": star_radius_models, "radius": 1.0},
+    t=AS,
+    s=1.0,
+    B=BSsw,
+)
 # sol.talk(talk=talk)
 jup = Planet(
-    name="Jupiter", mass=1.0, radius={ "models" : planet_radius_models, "radius" : 1.0}, distance=1.0, worb={"star_mass" : MS, "worb" : 1.0}, wrot=1.0
+    name="Jupiter",
+    mass=1.0,
+    radius={"models": planet_radius_models, "radius": 1.0},
+    distance=1.0,
+    worb={"star_mass": MS, "worb": 1.0},
+    wrot=1.0,
 )
 jup.talk(talk=talk)
 jup.tidal_locking(age=4.6e9, star_mass=1.0)
@@ -141,42 +157,50 @@ i = 0
 
 for target in data.itertuples():
     print(target.Index)
-    if not np.isnan(target.semi_major_axis) and (not np.isnan(target.mass) or not np.isnan(target.mass_sini)) and not np.isnan(target.star_mass):    
+    if (
+        not np.isnan(target.semi_major_axis)
+        and (not np.isnan(target.mass) or not np.isnan(target.mass_sini))
+        and not np.isnan(target.star_mass)
+    ):
 
-        if np.isnan(target.mass) :
-            planet_mass = target.mass_sini * np.sqrt(4/3.)
-        else : 
+        if np.isnan(target.mass):
+            planet_mass = target.mass_sini * np.sqrt(4 / 3.0)
+        else:
             planet_mass = target.mass
-        if not np.isnan(target.eccentricity) :
-            planet_distance = target.semi_major_axis * (1-target.eccentricity)
-        else :
+        if not np.isnan(target.eccentricity):
+            planet_distance = target.semi_major_axis * (1 - target.eccentricity)
+        else:
             planet_distance = target.semi_major_axis
 
-        if np.isnan(target.star_age) :
+        if np.isnan(target.star_age):
             star_age = 5.2
-        else : 
-            if target.star_age < 0.5 :
+        else:
+            if target.star_age < 0.5:
                 star_age = 0.5
-            else :
-                star_age= target.star_age
-            
+            else:
+                star_age = target.star_age
+
         planet = Planet(
             name=target.Index,
             mass=planet_mass,
-            radius={"models" : planet_radius_models, "radius" : target.radius},
+            radius={"models": planet_radius_models, "radius": target.radius},
             distance=planet_distance,
-            worb={"star_mass" : target.star_mass, "worb" : target.orbital_period},
+            worb={"star_mass": target.star_mass, "worb": target.orbital_period},
             detection_method=target.detection_type,
-            wrot=target.rot_rate
+            wrot=target.rot_rate,
         )
         star = Star(
             name="star",
             M=target.star_mass,
-            R={"models" : star_radius_models, "radius" : target.star_radius},
+            R={"models": star_radius_models, "radius": target.star_radius},
             t=star_age,
-            s=target.star_distance
+            s=target.star_distance,
         )
-#B=target.star_magnetic_field,
+        # B=target.star_magnetic_field,
+        if np.isnan(target.radius):
+            planet.radius_expansion(
+                luminosity=star.luminosity, eccentricity=target.eccentricity
+            )
         planet.tidal_locking(age=star.age, star_mass=star.mass, Qpp=target.tidal_Q)
         planet.talk(talk=talk)
         star.talk(talk=talk)
@@ -228,10 +252,10 @@ for target in data.itertuples():
                     "coronal_temperature": stellar_wind.corona_temperature,
                     "sw_magfield": stellar_wind.mag_field,
                     "magnetic_field": mytarget._mag_field,
-                    "freq_max": mytarget._freq_max /1e6,
-                    "pow_emission": mytarget._pow_emission / 1e14 ,
-                    "flux au": mytarget.flux/ 1e-26 / 1e10,
-                    "pow_received": mytarget._pow_received * 1e3 /1e-26,
+                    "freq_max": mytarget._freq_max / 1e6,
+                    "pow_emission": mytarget._pow_emission / 1e14,
+                    "flux au": mytarget.flux / 1e-26 / 1e10,
+                    "pow_received": mytarget._pow_received * 1e3 / 1e-26,
                     "freq_max_star": mytarget.freq_max_star,
                 },
                 index=[i],
@@ -271,7 +295,7 @@ for target in data.itertuples():
             )
             df_target = pd.concat([df_target, df2], ignore_index=True)
         i += 1
-    #if mytarget.select_target():
-            #selected_targets.append(mytarget)
+    # if mytarget.select_target():
+    # selected_targets.append(mytarget)
 
 df_target.to_csv("test_main.csv", sep=";", index=False)

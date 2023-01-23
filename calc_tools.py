@@ -38,7 +38,7 @@ def find_value(value: float, list: array, res: bool = False):
 
 
 def synchro_dist(
-    worb: float,
+    wrot: float,
     Qp: float,
     tsync: float,
     planet_mass: float,
@@ -46,9 +46,9 @@ def synchro_dist(
     star_mass: float,
 ):
     """Compute the distance at which a planet should be so that its orbit is synchronised, depending on the age of the system.
-    :param worb:
+    :param wrot:
         orbital period
-    :type worb:
+    :type wrot:
         float
     :param Qp:
         factor of dissipation by tidal effect
@@ -72,7 +72,7 @@ def synchro_dist(
         float
     """
     G = 6.6725985e-11
-    a = 9 * tsync / (4 * worb * 0.26 * Qp)
+    a = 9 * tsync / (4 * wrot * 0.26 * Qp)
     b = G * planet_mass / pow(planet_radius, 3)
     c = pow(star_mass / planet_mass, 2)
     res = planet_radius * pow(a * b * c, 1 / 6)

@@ -7,8 +7,22 @@ import pytest
 
 
 def test_magnetic_moment():
-    planet = Planet("Jupiter", 1.8986e27, 71492e3, 5.2 * 149597870700, 1.0, 1.77e-4)
-    star = Star("Sun", 1.989e30, 6.96342e8, 4.6e9, 1.0, 1.0, 3.826e26)
+    planet = Planet(
+        name="Jupiter",
+        mass=1.0,
+        radius={"models": ["original_radius"], "radius": 1.0},
+        distance=1.0,
+        worb={"star_mass": 1.989e30, "worb": 1.0},
+        wrot=1.0,
+    )
+    star = Star(
+        name="Soleil",
+        mass=1.0,
+        radius={"models": ["Tout"], "radius": 1.0},
+        age=4.6,
+        obs_dist=1.0,
+        magfield=1.0,
+    )
     dynamo = DynamoRegion.from_planet(planet, rhocrit=700)
 
     assert isinstance(planet, Planet)

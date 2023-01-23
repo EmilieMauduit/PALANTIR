@@ -193,9 +193,9 @@ def calc_temperature(M: float, t: float) -> float:
 
 def parker(star: Star, planet: Planet):
     """Compute the velocity and the density of the SW using the Parker model.
-    :param pla:
+    :param planet:
         The planet studied
-    :type pla:
+    :type planet:
         Planet
     :param star:
         The associated star
@@ -208,12 +208,12 @@ def parker(star: Star, planet: Planet):
     dua = 1.49597870700e11  # m
     G = 6.6725985e-11  # N.m^2/kg^2
     d = planet.stardist
-    t = star.age # yr
+    t = star.age  # yr
     T = calc_temperature(star.unnormalize_mass(), t)
     vc = sqrt(2 * kb * T / mp)
     rc = mp * G * star.unnormalize_mass() / (4 * kb * T)
     vorb = sqrt(G * star.unnormalize_mass() / (d * dua))
-
+    print(d)
     # Warning messages
     if d < 0.01:
         print(
@@ -222,45 +222,50 @@ def parker(star: Star, planet: Planet):
     if t < 0.7e9:
         print("Warning : The Parker model is not precise for stars with t<0.7 Gyr")
 
-    # Finding the rigth case
-
-    if 0.7e9 <= t <= 1.6e9:
-        dlim = 0.01
-    elif 1.6e9 < t < 3.5e9:
-        dlim = 0.02
-    elif 3.5e9 <= t:
-        dlim = 0.03
+    if d >= 1.0:
+        v = optimize.newton(
+            parker_velocity,
+            350.0e3,
+            parker_velocity_p,
+            args=(d * dua, rc, vc),
+            maxiter=50,
+        )
+        print("planet dist > 1UA")
     else:
-        dlim = 0.0
-        print("Star age of " + star.name + " is too small")
-
-    if d > dlim:
-        try:
-            v = optimize.newton(
+        d_temp = 1.0
+        v_temp_ini = optimize.newton(
+            parker_velocity,
+            350.0e3,
+            parker_velocity_p,
+            args=(d_temp * dua, rc, vc),
+            maxiter=50,
+        )
+        while abs(d_temp - d) >= 1e-5:
+            d_temp = (9 * d_temp + d) / 10.0
+            v_temp = optimize.newton(
                 parker_velocity,
-                350.0e3,
+                v_temp_ini,
                 parker_velocity_p,
-                args=(d * dua, rc, vc),
+                args=(d_temp * dua, rc, vc),
                 maxiter=50,
             )
-        except (ZeroDivisionError, RuntimeError):
-            v = 0.0
-            print("")
-    else:
-        try:
-            v = optimize.newton(
-                parker_velocity,
-                10e3,
-                parker_velocity_p,
-                args=(d * dua, rc, vc),
-                maxiter=50,
-            )
-        except (ZeroDivisionError, RuntimeError):
-            v = 0.0
+            if (v_temp / vc > 1.0) and (d_temp / (rc / dua) <= 1.0):
+                v_temp = optimize.newton(
+                    parker_velocity,
+                    0.9 * v_temp_ini,
+                    parker_velocity_p,
+                    args=(d_temp * dua, rc, vc),
+                    maxiter=50,
+                )
+            v_temp_ini = v_temp
+        v = v_temp
 
     veff = sqrt((v**2) + (vorb**2))
     Mls = masslossrate(t, star.radius)
     n = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
+    if n < 0:
+        raise ValueError("Negative stellar wind density is not physical.")
+    print("vsw =", v, " vorb= ", vorb, " veff= ", veff)
     return (veff, n, T)
 
 
@@ -358,8 +363,8 @@ class StellarWind:
         """
 
         ve, ne, T = parker(star=star, planet=planet)
-        #if planet.stardist <= 0.1:
-            #ve_cme, ne_cme, T_cme = CME(star=star, planet=planet)
-            #return cls((0.7*ne + 0.3*ne_cme) , (0.7*ve + 0.3*ve_cme), (0.7*T + 0.3*T_cme))
-        #else :
-        return cls(ne,ve,T)
+        # if planet.stardist <= 0.1:
+        # ve_cme, ne_cme, T_cme = CME(star=star, planet=planet)
+        # return cls((0.7*ne + 0.3*ne_cme) , (0.7*ve + 0.3*ve_cme), (0.7*T + 0.3*T_cme))
+        # else :
+        return cls(ne, ve, T)

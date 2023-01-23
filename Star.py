@@ -17,12 +17,31 @@ from typing import List
 
 def TOUT(mass: float):
     "From Tout et al, 1996"
-    theta2=1.71535900 ; iota2=6.59778800 ; kappa2=10.08855000
-    lambda2=1.01249500 ; mu2=0.07490166 ; nu2=0.01077422
-    eta2=3.08223400 ; omega2=17.84778000 ; pi2=0.00022582
-    a= theta2*pow(mass,2.5) + iota2*pow(mass,6.5) + kappa2*pow(mass,11) + lambda2*pow(mass,19) + mu2*pow(mass,19.5)
-    b= nu2 + eta2*pow(mass,2) + omega2*pow(mass,8.5) + pow(mass,18.5) + pi2*pow(mass,19.5)
-    return a/b
+    theta2 = 1.71535900
+    iota2 = 6.59778800
+    kappa2 = 10.08855000
+    lambda2 = 1.01249500
+    mu2 = 0.07490166
+    nu2 = 0.01077422
+    eta2 = 3.08223400
+    omega2 = 17.84778000
+    pi2 = 0.00022582
+    a = (
+        theta2 * pow(mass, 2.5)
+        + iota2 * pow(mass, 6.5)
+        + kappa2 * pow(mass, 11)
+        + lambda2 * pow(mass, 19)
+        + mu2 * pow(mass, 19.5)
+    )
+    b = (
+        nu2
+        + eta2 * pow(mass, 2)
+        + omega2 * pow(mass, 8.5)
+        + pow(mass, 18.5)
+        + pi2 * pow(mass, 19.5)
+    )
+    return a / b
+
 
 # ============================================================= #
 # ---------------------------- Star --------------------------- #
@@ -31,7 +50,13 @@ def TOUT(mass: float):
 
 class Star:
     def __init__(
-        self, name: str, M: float, R: dict, t: float, s: float, B: float = 1.0, L: float = 1.0
+        self,
+        name: str,
+        mass: float,
+        radius: dict,
+        age: float,
+        obs_dist: float,
+        magfield: float = 1.0,
     ):
 
         """Creates a Star object.
@@ -59,48 +84,34 @@ class Star:
             Star magnetic field, in T. Either known from litterature or computed.
         :type B:
             float
-        :param L:
-            Star luminosity, normalized to the Sun.
-        :type L:
-            float
         """
 
         self.name = name
-        self.mass = M
-        self.radius = R
-        self.age = t * 1e9
-        self.obs_dist = s
-        self.magfield = B
-        self.luminosity = L
+        self.mass = mass
+        self.radius = radius
+        self.age = age * 1e9
+        self.obs_dist = obs_dist
+        self.magfield = magfield
+        self._luminosity = None
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
 
     @property
     def radius(self):
-        return self._radius 
-    
+        return self._radius
+
     @radius.setter
-    def radius(self, value : dict):
+    def radius(self, value: dict):
         models = value["models"]
         radius = value["radius"]
-        if np.isnan(radius) :
+        if np.isnan(radius):
             self._radius = self._calculate_radius(models, self.mass)
-        else :
+        else:
             self._radius = radius
 
-    def talk(self, talk: bool):
-        if talk:
-            print("Name : ", self.name)
-            print("Mass : ", self.mass, " MS")
-            print("Radius : ", self.radius, " RS")
-            print("Age : ", self.age * 1e-9, " Gyr")
-            print("Distance to Earth : ", self.obs_dist, " pc")
-            print("SW magnetic field :  ", self.magfield, " T")
-            print("Luminosity : ", self.luminosity, "LS")
-
     @property
-    def calculate_luminosity(self):
+    def luminosity(self):
         a = 0.39704170
         b = 8.52762600
         c = 0.00025546
@@ -118,7 +129,18 @@ class Star:
             + f * pow(M, 8)
             + g * pow(M, 9.5)
         )
-        self.luminosity = res1 / res2
+        self._luminosity = res1 / res2
+        return self._luminosity
+
+    def talk(self, talk: bool):
+        if talk:
+            print("Name : ", self.name)
+            print("Mass : ", self.mass, " MS")
+            print("Radius : ", self.radius, " RS")
+            print("Age : ", self.age * 1e-9, " Gyr")
+            print("Distance to Earth : ", self.obs_dist, " pc")
+            print("SW magnetic field :  ", self.magfield, " T")
+            print("Luminosity : ", self.luminosity, "LS")
 
     @property
     def calculate_B(self):
@@ -141,8 +163,8 @@ class Star:
         L = self.luminosity * LS
         return L
 
-    def obs_dist_meters(self) -> float :
-        pc=3.08568e16 #m
+    def obs_dist_meters(self) -> float:
+        pc = 3.08568e16  # m
         return self.obs_dist * pc
 
     def alfven_radius(self, d: float) -> float:
@@ -158,15 +180,14 @@ class Star:
         return Ra
 
     @staticmethod
-    def _calculate_radius(models : List[str], 
-        mass : float,
-        Rmean : bool = True,
-        Rmax : bool = False ) :
-        R=[]
-        for model in models :
-            if "Tout" in model :
+    def _calculate_radius(
+        models: List[str], mass: float, Rmean: bool = True, Rmax: bool = False
+    ):
+        R = []
+        for model in models:
+            if "Tout" in model:
                 R.append(TOUT(mass))
-        if Rmean :
+        if Rmean:
             return np.mean(R)
-        if Rmax :
+        if Rmax:
             return np.max(R)

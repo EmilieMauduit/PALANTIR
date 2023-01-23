@@ -314,11 +314,11 @@ class MagneticMoment:
                 M.append(
                     Reiners_Christensen(planet, star, table_1MJ, table_5MJ, table_10MJ)
                 )
-        
+
         print(M)
 
         if Mmean and not Mmax:
-            self.mag_moment = pow(np.prod(M), 1/len(M))
+            self.mag_moment = pow(np.prod(M), 1 / len(M))
         elif Mmax and not Mmean:
             self.mag_moment = np.max(M)
         elif not Mmean and not Mmax:
@@ -337,11 +337,11 @@ class MagneticMoment:
         """
         kb = 1.380658e-23  # J/K
         mp = 1.660540210e-27  # kg
-        res1 = (mp * stellar_wind.density * pow(stellar_wind.effective_velocity,2)) + (
+        res1 = (mp * stellar_wind.density * pow(stellar_wind.effective_velocity, 2)) + (
             2 * stellar_wind.density * kb * stellar_wind.corona_temperature
         )
         self.standoff_dist = pow(
             (np.pi * 4e-7 * (1.16**2) * (self.unormalize_magnetic_moment(other) ** 2))
             / (res1 * 8 * (np.pi**2)),
-            1 / 6
+            1 / 6,
         )

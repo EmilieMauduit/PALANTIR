@@ -28,7 +28,7 @@ class Planet:
         radius: dict,
         distance: float,
         worb: dict,
-        detection_method : str = None,
+        detection_method: str = None,
         wrot: float = None,
     ):
         """Define a planet object. Every parameter must be normalized at Jupiter.
@@ -79,29 +79,30 @@ class Planet:
 
     @radius.setter
     def radius(self, value: dict):
-        #voir pour ajouter plus tard la prise en compte de l'expansion du rayon (3.1 de JMG 2007)
         models = value["models"]
         radius = value["radius"]
-        if np.isnan(radius) :
+        if np.isnan(radius):
             self._radius = self._calculate_radius(models, self.mass)
-        else :
+        else:
             self._radius = radius
+
     @property
     def orbitperiod(self):
         return self._orbitperiod
+
     @orbitperiod.setter
-    def orbitperiod(self, value :dict):
-        star_mass=value["star_mass"]
-        orbitperiod=value["worb"]
+    def orbitperiod(self, value: dict):
+        star_mass = value["star_mass"]
+        orbitperiod = value["worb"]
         dua = 1.49597870700e11  # m
         if np.isnan(orbitperiod):
             d = self.stardist * dua
             G = 6.6725985e-11
-            MS = 1.989e30 
+            MS = 1.989e30
             wJ = 1.77e-4  # s-1
-            self._orbitperiod = pow(star_mass * MS * G / pow(d, 3), 1 / 2.) / wJ
-        else :
-            self._orbitperiod = orbitperiod 
+            self._orbitperiod = pow(star_mass * MS * G / pow(d, 3), 1 / 2.0) / wJ
+        else:
+            self._orbitperiod = orbitperiod
 
     def talk(self, talk: bool):
         if talk:
@@ -121,7 +122,7 @@ class Planet:
         radius_jup = 71492e3  # m
         radius = self.radius * radius_jup
         return radius
-    
+
     def unnormalize_orbital_period(self):
         worb_jup = 1.77e-4  # s-1
         worb = self.orbitperiod * worb_jup
@@ -132,7 +133,34 @@ class Planet:
         wrot = self.rotrate * wrot_jup
         return wrot
 
-    def tidal_locking(self, age: float, star_mass: float, Qpp : float = 3.16e5):
+    def radius_expansion(self, luminosity: float, eccentricity: float):
+        """Compute the factor of expansion of the planetary radius, depending on the distance to the host star.
+        :param mass:
+            Planetary mass, in MJ.
+        :type mass:
+            float
+        """
+
+        LS = 3.826e26  # W
+        ct1 = 764
+        ct2 = 0.28
+        cg1 = 0.59
+        cg2 = 1.03
+        A = 0.4
+        sigmaSB = 5.670374419e-8
+        B = (1 + (eccentricity**2) / 2) ** 2
+        d = self.stardist * 1.49597870700e11
+
+        T0 = ct1 * pow(self.mass, ct2)
+        gamma = 1.15 + 0.05 * pow(cg1 / self.mass, cg2)
+        Teq = pow(
+            (1 - A) * luminosity * LS / (16 * np.pi * (d**2) * sigmaSB * B), 1.0 / 4
+        )
+
+        Rp = self._radius
+        self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
+
+    def tidal_locking(self, age: float, star_mass: float, Qpp: float = 3.16e5):
         """Computes the rotation rate of the planet depending on a synchronized or free rotation.
         Depending on the age of the host star, a limit distance is evaluated and if the star-planet distance is lower than that we consider a synchronized orbit, else we assume the rotation rate to be Jupiter's.
 
@@ -148,8 +176,10 @@ class Planet:
 
         wrot_J = 1.77e-4  # s-1
         d = self.stardist
-        dsync = synchro_dist(wrot_J, Qpp,age, self.mass, self.radius, star_mass)
-        if d <= dsync :
+        dsync = synchro_dist(
+            self.rotrate * wrot_J, Qpp, age, self.mass, self.radius, star_mass
+        )
+        if d <= dsync:
             self.rotrate = self.orbitperiod
         else:
             self.rotrate = self.rotrate
@@ -181,19 +211,24 @@ class Planet:
         return 10**L
 
     @staticmethod
-    def _calculate_radius(models : List[str], 
-        mass : float,
-        Rmean : bool = True,
-        Rmax : bool = False ) :
+    def _calculate_radius(
+        models: List[str], mass: float, Rmean: bool = True, Rmax: bool = False
+    ):
 
-        R=[]
-        for model in models :
-            if "radius_original" in model :
-                Mmax=3.16*1.8986e27  # kg
-                R.append(1.47*pow(mass,1./3)/(1+pow(mass/Mmax,2./3)))
-        if Rmean :
+        R = []
+        for model in models:
+            if "radius_original" in model:
+                Mmax = 3.16 * 1.8986e27  # kg
+                rho0 = 394  # kg.m-3
+                RJ = 69911e3
+                R.append(
+                    pow((4 / 3) * np.pi * rho0, -1.0 / 3)
+                    * pow(mass * 1.8986e27, 1.0 / 3)
+                    / (1 + pow(mass * 1.8986e27 / Mmax, 2.0 / 3))
+                    / RJ
+                )
+        if Rmean:
             print("Rmean : ", R)
             return np.mean(R)
-        if Rmax :
+        if Rmax:
             return np.max(R)
-
