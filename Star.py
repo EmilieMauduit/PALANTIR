@@ -55,8 +55,7 @@ class Star:
         mass: float,
         radius: dict,
         age: float,
-        obs_dist: float,
-        magfield: float = 1.0,
+        obs_dist: float
     ):
 
         """Creates a Star object.
@@ -90,8 +89,9 @@ class Star:
         self.mass = mass
         self.radius = radius
         self.age = age * 1e9
-        self.obs_dist = obs_dist
-        self.magfield = magfield
+        self.obs_dist = obs_dist 
+        self._rotperiod = None
+        self._magfield = None
         self._luminosity = None
 
     # --------------------------------------------------------- #
@@ -109,6 +109,18 @@ class Star:
             self._radius = self._calculate_radius(models, self.mass)
         else:
             self._radius = radius
+    
+    @property
+    def rotperiod(self):
+        if self._rotperiod is None :
+            self._rotperiod = self._compute_rotperiod(age=self.age)
+        return self._rotperiod
+    
+    @property
+    def magfield(self):
+        if self._magfield is None :
+            self._magfield = self._compute_magfield(self.rotperiod)
+        return self._magfield
 
     @property
     def luminosity(self):
@@ -134,17 +146,14 @@ class Star:
 
     def talk(self, talk: bool):
         if talk:
-            print("Name : ", self.name)
-            print("Mass : ", self.mass, " MS")
-            print("Radius : ", self.radius, " RS")
-            print("Age : ", self.age * 1e-9, " Gyr")
-            print("Distance to Earth : ", self.obs_dist, " pc")
-            print("SW magnetic field :  ", self.magfield, " T")
-            print("Luminosity : ", self.luminosity, "LS")
-
-    @property
-    def calculate_B(self):
-        self.B = 1
+            print("Star name : ", self.name)
+            print("Star mass : ", self.mass, " MS")
+            print("Star radius : ", self.radius, " RS")
+            print("Star age : ", self.age * 1e-9, " Gyr")
+            print("Star distance to Earth : ", self.obs_dist, " pc")
+            print("Star rotational period : ", self.rotperiod, " days")
+            print("Star magnetic field :  ", self.magfield, " T")
+            print("Star luminosity : ", self.luminosity, "LS")
 
     # Methods
 
@@ -191,3 +200,18 @@ class Star:
             return np.mean(R)
         if Rmax:
             return np.max(R)
+
+    @staticmethod
+    def _compute_rotperiod(age : float):
+        """Define the rotational period of the star in days."""
+        tau = 2.56e7  # yr
+        K = 0.6709505359255223
+        rotperiod =  K * pow(1+(age/tau),0.7)
+        return rotperiod
+
+    @staticmethod
+    def _compute_magfield(rotperiod : float):
+        Psun = 25.5 #days 
+        Bsun = 1.435e-4 #T
+        magfield = Bsun * Psun / rotperiod
+        return magfield

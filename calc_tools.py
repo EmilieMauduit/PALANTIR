@@ -87,8 +87,8 @@ def calc_vsun(age: float):
         float
     """
     tau = 2.56e7  # yr
-    vo = 3397e3  # m/s
-    vsun = vo / pow((1 + (age / tau)), 0.4)
+    vo = 3971e3  # m/s
+    vsun = vo / pow((1 + (age / tau)), 0.43)
     return vsun
 
 
@@ -100,6 +100,12 @@ def calc_nsun(age: float):
         float
     """
     tau = 2.56e7  # yr
-    no = 1.6e10  # m-3
-    nsun = no / pow((1 + (age / tau)), 1.5)
+    no = 1.04e11  # m-3
+    nsun = no / pow((1 + (age / tau)), 1.86)
     return nsun
+
+def calc_Bimf(stardist : float) :
+    Br0=2.6e-9 ; Bp0=2.4e-9 #T
+    Br=Br0*pow(stardist,-2)
+    Bp=Bp0*pow(stardist,-1)
+    return(Br,Bp)

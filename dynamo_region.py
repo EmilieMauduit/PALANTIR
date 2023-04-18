@@ -46,7 +46,7 @@ def LaneEmden(Mp, Rp, rhot):
                 rhoLE, Rp / 2, fprime=rhoLEp, args=(Mp, Rp, rhot), maxiter=50
             )
         except (ZeroDivisionError, RuntimeError):
-            res = 0.0
+            res = np.nan
     else:
         try:
             res = optimize.newton(
@@ -58,7 +58,7 @@ def LaneEmden(Mp, Rp, rhot):
                 maxiter=50,
             )
         except (ZeroDivisionError, RuntimeError):
-            res = 0.0
+            res = np.nan
 
     return res
 

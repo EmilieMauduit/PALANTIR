@@ -9,6 +9,7 @@ Created on Thu Dec  2 15:46:05 2021
 import pandas as pd
 import numpy as np
 from typing import List
+from math import sqrt, pow
 
 from planet import Planet
 from star import Star
@@ -160,11 +161,8 @@ def sano(rc: float, wrot: float, rhoc: float):
 
 def Reiners_Christensen(
     planet: Planet,
-    star: Star,
-    table1: pd.DataFrame,
-    table2: pd.DataFrame,
-    table3: pd.DataFrame,
-):
+    star: Star , 
+    jup : Planet):
 
     """Computing the magnetic moment based on Reiners-Christensen's simulations, 2010.
     :param planet:
@@ -175,34 +173,32 @@ def Reiners_Christensen(
         The host star of the planet.
     :type star:
         Star
-    :param table1:
-        Table containing reference values of the luminosty depending on the stellar age for a specific mass.
-    :type table1:
-        pd.DataFrame
-    :param table2:
-        Table containing reference values of the luminosty depending on the stellar age for a specific mass.
-    :type table2:
-        pd.DataFrame
-    :param table3:
-        Table containing reference values of the luminosty depending on the stellar age for a specific mass.
-    :type table3:
-        pd.DataFrame
     """
 
-    lum_jup = 1.31e-9  # Lsun
+    MS = 1.989e30 
+    RS = 6.96342e8
+    #lum_jup = 1.31e-9  # Lsun
 
     if planet.name == "Jupiter":
         lum = 1.0
         # print("jup")
     else:
-        lum = planet.calculate_luminosity(star.age, table1, table2, table3) / lum_jup
+        lum = planet._luminosity/jup._luminosity
 
-    print("luminosité", planet.name, lum * lum_jup)
+    print("luminosité", planet.name, lum * jup._luminosity,lum)
     # print("dans RC : L=", L)
 
     a = planet.mass * (lum**2) * pow(planet.radius, 11)
-    b = pow(1 - (0.17 / planet.mass), 3) / pow((1 - 0.17), 3)
-    res = b * pow(a, 1.0 / 6)
+
+    if planet.mass > 13. :
+        res = pow(a, 1.0 / 6) * (2 * sqrt(2) / pow(1-0.17,3))
+    else :
+        Bdyn = 4.8 * pow((planet.unnormalize_mass()/MS)*((lum*jup._luminosity)**2)*pow(RS/planet.unnormalize_radius(),7),1./6)
+        Beq = pow(1-(0.17/planet.mass),3) * Bdyn / (2 * sqrt(2))
+        print('Bdyn = {:e} , Beq = {:e}'.format(Bdyn,Beq))
+
+        b = pow(1 - (0.17 / planet.mass), 3) / pow((1 - 0.17), 3)
+        res = b * pow(a, 1.0 / 6)
     return res
 
 
@@ -253,6 +249,7 @@ class MagneticMoment:
         dynamo: DynamoRegion,
         planet: Planet,
         star: Star,
+        jup : Planet,
         Mmean: bool = True,
         Mmax: bool = False,
         normalize: bool = True,
@@ -299,23 +296,13 @@ class MagneticMoment:
             if model == "sano":
                 M.append(sano(dynamo.radius, wrot, dynamo.density))
             if model == "rein-chris":
-                table_1MJ = pd.read_csv(
-                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/1MJ_log.csv",
-                    delimiter=";",
-                )
-                table_5MJ = pd.read_csv(
-                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/5MJ_log.csv",
-                    delimiter=";",
-                )
-                table_10MJ = pd.read_csv(
-                    r"/Users/emauduit/Documents/Thèse/Sélection des cibles/Programmes/10MJ_log.csv",
-                    delimiter=";",
-                )
-                M.append(
-                    Reiners_Christensen(planet, star, table_1MJ, table_5MJ, table_10MJ)
-                )
+                if planet.mass >= 0.17 :
+                    M.append(Reiners_Christensen(planet, star,jup))
+                else : 
+                    print('Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0.')
+                    M.append(np.nan)
 
-        print(M)
+        print('Magnetic moment list : ', M)
 
         if Mmean and not Mmax:
             self.mag_moment = pow(np.prod(M), 1 / len(M))

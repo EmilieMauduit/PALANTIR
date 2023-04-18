@@ -28,6 +28,7 @@ class Planet:
         radius: dict,
         distance: float,
         worb: dict,
+        luminosity : dict, 
         detection_method: str = None,
         wrot: float = None,
     ):
@@ -69,6 +70,7 @@ class Planet:
         self.orbitperiod = worb
         self.rotrate = wrot
         self.detection_method = detection_method
+        self.luminosity = luminosity
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -95,14 +97,29 @@ class Planet:
         star_mass = value["star_mass"]
         orbitperiod = value["worb"]
         dua = 1.49597870700e11  # m
+        wJ = 1.77e-4  # s-1
         if np.isnan(orbitperiod):
             d = self.stardist * dua
             G = 6.6725985e-11
             MS = 1.989e30
-            wJ = 1.77e-4  # s-1
             self._orbitperiod = pow(star_mass * MS * G / pow(d, 3), 1 / 2.0) / wJ
         else:
-            self._orbitperiod = orbitperiod
+            self._orbitperiod = orbitperiod  
+    
+    @property
+    def luminosity(self):
+        return self._luminosity
+    
+    @luminosity.setter
+    def luminosity(self,value:dict):
+        models = value['models']
+        luminosity = value['luminosity']
+        star_age = value['star_age']
+
+        if np.isnan(luminosity):
+            self._luminosity = self._calculate_luminosity(models,planet_mass = self.mass, star_age = star_age)
+        else :
+            self._luminosity = luminosity
 
     def talk(self, talk: bool):
         if talk:
@@ -111,6 +128,8 @@ class Planet:
             print("Radius : ", self.radius, " Rj")
             print("Rotation rate : ", self.rotrate, " wj")
             print("Orbital period : ", self.orbitperiod, "woj")
+            print("Luminosity : ", self.luminosity, " Ls")
+            print("_Luminosity : ", self._luminosity, " Ls")
             print("Distance to host star : ", self.stardist, " AU")
 
     def unnormalize_mass(self):
@@ -184,37 +203,10 @@ class Planet:
         else:
             self.rotrate = self.rotrate
 
-    def calculate_luminosity(
-        self,
-        age: float,
-        table1: pd.DataFrame,
-        table2: pd.DataFrame,
-        table3: pd.DataFrame,
-    ):
-        """Retourne la liste des luminosités en fonction de l'âge selon la valeur de M"""
-        # MJ = 1.8986e27
-        M = self.mass
-        print("Mass ds calc", M)
-        L1 = np.interp(
-            np.log10(age * 1e-9), table1["log(t) (Gyr)"], table1["log(L/Ls)"]
-        )
-        L2 = np.interp(
-            np.log10(age * 1e-9), table2["log(t) (Gyr)"], table2["log(L/Ls)"]
-        )
-        L3 = np.interp(
-            np.log10(age * 1e-9), table3["log(t) (Gyr)"], table3["log(L/Ls)"]
-        )
-        luminosities = [L1, L2, L3]
-        masses = np.log10([1.0, 5.0, 10.0])
-        L = np.interp(np.log10(M), masses, luminosities)
-        self.luminosity = 10**L
-        return 10**L
-
     @staticmethod
     def _calculate_radius(
         models: List[str], mass: float, Rmean: bool = True, Rmax: bool = False
     ):
-
         R = []
         for model in models:
             if "radius_original" in model:
@@ -228,7 +220,60 @@ class Planet:
                     / RJ
                 )
         if Rmean:
-            print("Rmean : ", R)
+            print("Rmean : ", np.mean(R))
             return np.mean(R)
         if Rmax:
             return np.max(R)
+
+    @staticmethod
+    def _calculate_luminosity(
+        models, 
+        planet_mass : float, 
+        star_age: float, 
+        Lmean : bool = True, 
+        Lmax : bool = False
+        ):
+
+        """Retourne la liste des luminosités en fonction de l'âge selon la valeur de M"""
+
+        MJ = 1.8986e27 ; ME = 6e1024 ; M = planet_mass
+        L = []
+        for model in models :
+            if model == 'Burrows' :
+                table = pd.read_csv(r"Burrows.csv",delimiter=";")
+                mass_dict = ["M=1MJ_","M=5MJ_","M=10MJ_","M=20MJ_"]
+                luminosities = [np.interp(
+                    np.log10(star_age), table[mass+"log(t) (Gyr)"], table[mass+"log(L/Ls)"]) 
+                    for mass in mass_dict]
+                masses = np.log10([1.0, 5.0, 10.0, 20.0])
+                L.append(10**(np.interp(np.log10(M), masses, luminosities)))
+            elif model == 'Baraffe_noirrad' :
+                """ Tables taken from Baraffe et al, 2008, link :
+                https://perso.ens-lyon.fr/isabelle.baraffe/PLANET08/"""
+                table = pd.read_csv(r"Baraffe_noirrad.csv", delimiter=';')
+                age_dict = ['t=0.01_log(L/Ls)', 't=0.05_log(L/Ls)', 't=0.10_log(L/Ls)',
+                    't=0.50_log(L/Ls)', 't=1.00_log(L/Ls)', 't=3.00_log(L/Ls)', 
+                    't=5.00_log(L/Ls)','t=7.00_log(L/Ls)']
+                luminosities = [np.interp(M*MJ/ME, table['M/M_E'], table[age]) for age in age_dict]
+                ages = [0.01,0.05,0.10,0.50,1.0,3.0,5.0,7.0]
+                L.append(10**(np.interp(star_age, ages, luminosities)))
+            elif model == 'Baraffe_irrad' :
+                """ Tables taken from Baraffe et al, 2008, link :
+                https://perso.ens-lyon.fr/isabelle.baraffe/PLANET08/"""
+                table = pd.read_csv(r"Baraffe_irrad.csv", delimiter=';')
+                age_dict = ['t=0.01_log(L/Ls)', 't=0.05_log(L/Ls)', 't=0.10_log(L/Ls)',
+                    't=0.50_log(L/Ls)', 't=1.00_log(L/Ls)', 't=3.00_log(L/Ls)', 
+                    't=5.00_log(L/Ls)','t=7.00_log(L/Ls)']
+                luminosities = [np.interp(M*MJ/ME, table['M/M_E'], table[age]) for age in age_dict]
+                ages = [0.01,0.05,0.10,0.50,1.0,3.0,5.0,7.0]
+                L.append(10**(np.interp(star_age, ages, luminosities)))
+        
+        if Lmean and not Lmax:
+            print("Lmean : ", pow(np.prod(L), 1 / len(L)))
+            return pow(np.prod(L), 1 / len(L))
+        elif Lmax and not Lmean:
+            return np.max(L)
+        elif not Lmax and not Lmean :
+            return L[0]
+        else :
+            raise ValueError("Wrong value for Lmean :{Lmean} or Lmax : {Lmax}, only one can be set to True")
