@@ -50,12 +50,7 @@ def TOUT(mass: float):
 
 class Star:
     def __init__(
-        self,
-        name: str,
-        mass: float,
-        radius: dict,
-        age: float,
-        obs_dist: float
+        self, name: str, mass: float, radius: dict, age: float, obs_dist: float
     ):
 
         """Creates a Star object.
@@ -89,7 +84,7 @@ class Star:
         self.mass = mass
         self.radius = radius
         self.age = age * 1e9
-        self.obs_dist = obs_dist 
+        self.obs_dist = obs_dist
         self._rotperiod = None
         self._magfield = None
         self._luminosity = None
@@ -109,16 +104,16 @@ class Star:
             self._radius = self._calculate_radius(models, self.mass)
         else:
             self._radius = radius
-    
+
     @property
     def rotperiod(self):
-        if self._rotperiod is None :
+        if self._rotperiod is None:
             self._rotperiod = self._compute_rotperiod(age=self.age)
         return self._rotperiod
-    
+
     @property
     def magfield(self):
-        if self._magfield is None :
+        if self._magfield is None:
             self._magfield = self._compute_magfield(self.rotperiod)
         return self._magfield
 
@@ -202,16 +197,16 @@ class Star:
             return np.max(R)
 
     @staticmethod
-    def _compute_rotperiod(age : float):
+    def _compute_rotperiod(age: float):
         """Define the rotational period of the star in days."""
         tau = 2.56e7  # yr
         K = 0.6709505359255223
-        rotperiod =  K * pow(1+(age/tau),0.7)
+        rotperiod = K * pow(1 + (age / tau), 0.7)
         return rotperiod
 
     @staticmethod
-    def _compute_magfield(rotperiod : float):
-        Psun = 25.5 #days 
-        Bsun = 1.435e-4 #T
+    def _compute_magfield(rotperiod: float):
+        Psun = 25.5  # days
+        Bsun = 1.435e-4  # T
         magfield = Bsun * Psun / rotperiod
         return magfield

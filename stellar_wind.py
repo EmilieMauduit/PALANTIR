@@ -7,7 +7,7 @@
 
 from scipy import optimize
 import numpy as np
-from math import sqrt, log, atan, sin 
+from math import sqrt, log, atan, sin
 
 from calc_tools import calc_vsun, calc_nsun, calc_Bimf
 
@@ -191,7 +191,7 @@ def calc_temperature(M: float, t: float) -> float:
     return T
 
 
-def parker(star: Star, planet: Planet, T :float = None):
+def parker(star: Star, planet: Planet, T: float = None):
     """Compute the velocity and the density of the SW using the Parker model.
     :param planet:
         The planet studied
@@ -209,7 +209,7 @@ def parker(star: Star, planet: Planet, T :float = None):
     G = 6.6725985e-11  # N.m^2/kg^2
     d = planet.stardist
     t = star.age  # yr
-    if T is None :
+    if T is None:
         T = calc_temperature(star.unnormalize_mass(), t)
     vc = sqrt(2 * kb * T / mp)
     rc = mp * G * star.unnormalize_mass() / (4 * kb * T)
@@ -302,7 +302,7 @@ def CME(star: Star, planet: Planet):
 
 
 class StellarWind:
-    def __init__(self, ne: float, ve: float, Tcor: float, Bsw: dict ):
+    def __init__(self, ne: float, ve: float, Tcor: float, Bsw: dict):
         """Creates a stellar wind object.
 
         :param ne:
@@ -348,17 +348,21 @@ class StellarWind:
 
     @mag_field.setter
     def mag_field(self, value: dict):
-        if ("planet" or "star" or "vsw") not in value :
-            raise KeyError ("Planet or Star or SW velocity not in value.")
+        if ("planet" or "star" or "vsw") not in value:
+            raise KeyError("Planet or Star or SW velocity not in value.")
         G = 6.6725985e-11  # N.m^2/kg^2
         dua = 1.49597870700e11  # m
-        Psun = 25.5 #days
-        vorb = sqrt(G * value["star"].unnormalize_mass() / (value["planet"].stardist * dua))
-        Bimf_r,Bimf_p = calc_Bimf(stardist = value["planet"].stardist)
-        alpha = atan(Bimf_p/Bimf_r) ; beta = atan(vorb/value["vsw"])
-        Bimf_r *= Psun / value['star'].rotperiod ; Bimf_p *= Psun / value['star'].rotperiod
-        #print("alpha = ", alpha*180/np.pi, " beta= ", beta*180/np.pi)
-        #print(Bimf_r,Bimf_p)
+        Psun = 25.5  # days
+        vorb = sqrt(
+            G * value["star"].unnormalize_mass() / (value["planet"].stardist * dua)
+        )
+        Bimf_r, Bimf_p = calc_Bimf(stardist=value["planet"].stardist)
+        alpha = atan(Bimf_p / Bimf_r)
+        beta = atan(vorb / value["vsw"])
+        Bimf_r *= Psun / value["star"].rotperiod
+        Bimf_p *= Psun / value["star"].rotperiod
+        # print("alpha = ", alpha*180/np.pi, " beta= ", beta*180/np.pi)
+        # print(Bimf_r,Bimf_p)
         self._mag_field = sqrt(Bimf_r**2 + Bimf_p**2) * abs(sin(alpha - beta))
 
     @classmethod
@@ -380,4 +384,4 @@ class StellarWind:
         # return cls((0.7*ne + 0.3*ne_cme) , (0.7*ve + 0.3*ve_cme), (0.7*T + 0.3*T_cme))
         # else :
 
-        return cls(ne, veff, T, Bsw = {"planet" : planet, "star" : star, "vsw" : v})
+        return cls(ne, veff, T, Bsw={"planet": planet, "star": star, "vsw": v})

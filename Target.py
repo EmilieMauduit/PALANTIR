@@ -9,7 +9,7 @@ Created on Fri Dec  3 14:02:05 2021
 from math import pow
 import numpy as np
 
-from calc_tools import calc_Bimf
+# from calc_tools import calc_Bimf
 
 # from magnetic_moment import MagneticMoment
 # from planet import Planet
@@ -29,7 +29,7 @@ class Target:
         mag_field: dict,
         pow_emission: dict,
         pow_received: dict,
-        fmax_star : dict
+        fmax_star: dict,
     ):
         """Creates a Target object.
         :param name:
@@ -144,7 +144,7 @@ class Target:
         return self._pow_emission_magnetic
 
     @pow_emission_magnetic.setter
-    def pow_emission_magnetic(self, value : dict) :
+    def pow_emission_magnetic(self, value: dict):
         if (
             "planet" not in value
             or "star" not in value
@@ -158,27 +158,42 @@ class Target:
         prad_jup = 2.1e11  # W
         standoff_dist_jup = 40.1  # RJ
         veff_jup = 523e3  # m/s
-        print("Bperp,jup: ",value["sw_jupiter"].mag_field)
-        print("Bperp, pla : ",value["stellar_wind"].mag_field )
+        print("Bperp,jup: ", value["sw_jupiter"].mag_field)
+        print("Bperp, pla : ", value["stellar_wind"].mag_field)
         self._pow_emission_magnetic = (
-            prad_jup *
-            (value["stellar_wind"].effective_velocity / veff_jup) *
-            pow(value["stellar_wind"].mag_field / value["sw_jupiter"].mag_field, 2) *
-            pow(value["magnetic_moment"].normalize_standoff_dist(planet=value["planet"]) * value["planet"].radius / standoff_dist_jup, 2)
+            prad_jup
+            * (value["stellar_wind"].effective_velocity / veff_jup)
+            * pow(value["stellar_wind"].mag_field / value["sw_jupiter"].mag_field, 2)
+            * pow(
+                value["magnetic_moment"].normalize_standoff_dist(planet=value["planet"])
+                * value["planet"].radius
+                / standoff_dist_jup,
+                2,
             )
+        )
 
     @property
     def flux_kinetic_au(self):
         if self._flux_kinetic_au is None:
             dua = 1.49597870700e11  # m
-            self._flux_kinetic_au = self._pow_emission_kinetic / (1.6 * self.freq_max * (dua**2))
+            try :
+                self._flux_kinetic_au = self._pow_emission_kinetic / (
+                    1.6 * self.freq_max * (dua**2)
+                )
+            except(ZeroDivisionError):
+                self._flux_kinetic_au = 0.
         return self._flux_kinetic_au
 
     @property
     def flux_magnetic_au(self):
         if self._flux_magnetic_au is None:
             dua = 1.49597870700e11  # m
-            self._flux_magnetic_au = self._pow_emission_magnetic / (1.6 * self.freq_max * (dua**2))
+            try :
+                self._flux_magnetic_au = self._pow_emission_magnetic / (
+                    1.6 * self.freq_max * (dua**2)
+                )
+            except(ZeroDivisionError):
+                self._flux_magnetic_au = 0.
         return self._flux_magnetic_au
 
     @property
@@ -191,9 +206,12 @@ class Target:
             raise KeyError("star not in value")
 
         pc = 3.08568e16  # m
-        self._pow_received_kinetic = self._pow_emission_kinetic / (
-            1.6 * self.freq_max * pow(value["star"].obs_dist * pc, 2)
-        )
+        try : 
+            self._pow_received_kinetic = self._pow_emission_kinetic / (
+                1.6 * self.freq_max * pow(value["star"].obs_dist * pc, 2)
+            )
+        except (ZeroDivisionError):
+            self._pow_received_kinetic = 0.
 
     @property
     def pow_received_magnetic(self):
@@ -205,17 +223,20 @@ class Target:
             raise KeyError("star not in value")
 
         pc = 3.08568e16  # m
-        self._pow_received_magnetic = self._pow_emission_magnetic / (
-            1.6 * self.freq_max * pow(value["star"].obs_dist * pc, 2)
-        )
-    
+        try :
+            self._pow_received_magnetic = self._pow_emission_magnetic / (
+                1.6 * self.freq_max * pow(value["star"].obs_dist * pc, 2)
+            )
+        except (ZeroDivisionError):
+            self._pow_received_magnetic = 0.
+
     @property
     def freq_max_star(self):
         return self._freq_max_star
-    
+
     @freq_max_star.setter
-    def freq_max_star(self, value : dict):
-        if "star" not in value :
+    def freq_max_star(self, value: dict):
+        if "star" not in value:
             raise KeyError("star not in value")
         me = 9.1093897e-31  # kg
         e = 1.60217733e-19  # C
@@ -269,12 +290,12 @@ class Target:
                 " MHz",
             )
 
-    def select_target(self, 
-        fmin : float = None, 
-        fmax : float = None,
-        flux_min : float = None,
-
-        ) -> bool:
+    def select_target(
+        self,
+        fmin: float = None,
+        fmax: float = None,
+        flux_min: float = None,
+    ) -> bool:
         """Select or not a target according to various criterions set by the user."""
         if ():
             return True

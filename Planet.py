@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from math import pow
 from typing import List
+from scipy.interpolate import interp1d
 
 from calc_tools import synchro_dist
 
@@ -28,7 +29,7 @@ class Planet:
         radius: dict,
         distance: float,
         worb: dict,
-        luminosity : dict, 
+        luminosity: dict,
         detection_method: str = None,
         wrot: float = None,
     ):
@@ -104,21 +105,23 @@ class Planet:
             MS = 1.989e30
             self._orbitperiod = pow(star_mass * MS * G / pow(d, 3), 1 / 2.0) / wJ
         else:
-            self._orbitperiod = orbitperiod  
-    
+            self._orbitperiod = orbitperiod
+
     @property
     def luminosity(self):
         return self._luminosity
-    
+
     @luminosity.setter
-    def luminosity(self,value:dict):
-        models = value['models']
-        luminosity = value['luminosity']
-        star_age = value['star_age']
+    def luminosity(self, value: dict):
+        models = value["models"]
+        luminosity = value["luminosity"]
+        star_age = value["star_age"]
 
         if np.isnan(luminosity):
-            self._luminosity = self._calculate_luminosity(models,planet_mass = self.mass, star_age = star_age)
-        else :
+            self._luminosity = self._calculate_luminosity(
+                models, planet_mass=self.mass, star_age=star_age
+            )
+        else:
             self._luminosity = luminosity
 
     def talk(self, talk: bool):
@@ -225,55 +228,88 @@ class Planet:
         if Rmax:
             return np.max(R)
 
+
+
     @staticmethod
     def _calculate_luminosity(
-        models, 
-        planet_mass : float, 
-        star_age: float, 
-        Lmean : bool = True, 
-        Lmax : bool = False
-        ):
+        models,
+        planet_mass: float,
+        star_age: float,
+        Lmean: bool = True,
+        Lmax: bool = False,
+    ):
 
         """Retourne la liste des luminosités en fonction de l'âge selon la valeur de M"""
 
-        MJ = 1.8986e27 ; ME = 6e1024 ; M = planet_mass
+        MJ = 1.8986e27
+        ME = 6e24
+        M = planet_mass
         L = []
-        for model in models :
-            if model == 'Burrows' :
-                table = pd.read_csv(r"Burrows.csv",delimiter=";")
-                mass_dict = ["M=1MJ_","M=5MJ_","M=10MJ_","M=20MJ_"]
-                luminosities = [np.interp(
-                    np.log10(star_age), table[mass+"log(t) (Gyr)"], table[mass+"log(L/Ls)"]) 
-                    for mass in mass_dict]
+        for model in models:
+            if model == "Burrows":
+                table = pd.read_csv(r"Burrows.csv", delimiter=";")
+                mass_dict = ["M=1MJ_", "M=5MJ_", "M=10MJ_", "M=20MJ_"]
+                luminosities = [
+                    np.interp(
+                        np.log10(star_age),
+                        table[mass + "log(t) (Gyr)"],
+                        table[mass + "log(L/Ls)"],
+                    )
+                    for mass in mass_dict
+                ]
                 masses = np.log10([1.0, 5.0, 10.0, 20.0])
-                L.append(10**(np.interp(np.log10(M), masses, luminosities)))
-            elif model == 'Baraffe_noirrad' :
-                """ Tables taken from Baraffe et al, 2008, link :
-                https://perso.ens-lyon.fr/isabelle.baraffe/PLANET08/"""
-                table = pd.read_csv(r"Baraffe_noirrad.csv", delimiter=';')
-                age_dict = ['t=0.01_log(L/Ls)', 't=0.05_log(L/Ls)', 't=0.10_log(L/Ls)',
-                    't=0.50_log(L/Ls)', 't=1.00_log(L/Ls)', 't=3.00_log(L/Ls)', 
-                    't=5.00_log(L/Ls)','t=7.00_log(L/Ls)']
-                luminosities = [np.interp(M*MJ/ME, table['M/M_E'], table[age]) for age in age_dict]
-                ages = [0.01,0.05,0.10,0.50,1.0,3.0,5.0,7.0]
-                L.append(10**(np.interp(star_age, ages, luminosities)))
-            elif model == 'Baraffe_irrad' :
-                """ Tables taken from Baraffe et al, 2008, link :
-                https://perso.ens-lyon.fr/isabelle.baraffe/PLANET08/"""
-                table = pd.read_csv(r"Baraffe_irrad.csv", delimiter=';')
-                age_dict = ['t=0.01_log(L/Ls)', 't=0.05_log(L/Ls)', 't=0.10_log(L/Ls)',
-                    't=0.50_log(L/Ls)', 't=1.00_log(L/Ls)', 't=3.00_log(L/Ls)', 
-                    't=5.00_log(L/Ls)','t=7.00_log(L/Ls)']
-                luminosities = [np.interp(M*MJ/ME, table['M/M_E'], table[age]) for age in age_dict]
-                ages = [0.01,0.05,0.10,0.50,1.0,3.0,5.0,7.0]
-                L.append(10**(np.interp(star_age, ages, luminosities)))
-        
+                L.append(10 ** (np.interp(np.log10(M), masses, luminosities)))
+            elif model == "Baraffe_noirrad":
+                #print('mass in Baraffe = ', M)
+                """Tables taken from Baraffe et al, 2008, link :
+                https://perso.ens-lyon.fr/isabelle.baraffe/PLANET08/
+                Same for the other model."""
+                table = pd.read_csv(r"Baraffe_no_irrad.csv", delimiter=";")
+                age_dict = [
+                    "t=0.01_log(L/Ls)",
+                    "t=0.05_log(L/Ls)",
+                    "t=0.10_log(L/Ls)",
+                    "t=0.50_log(L/Ls)",
+                    "t=1.00_log(L/Ls)",
+                    "t=3.00_log(L/Ls)",
+                    "t=5.00_log(L/Ls)",
+                    "t=7.00_log(L/Ls)",
+                ]
+                luminosities = []
+                for age in age_dict :
+                    f_noirrad = interp1d(np.log10(table["M/M_E"]),table[age],kind='linear',fill_value='extrapolate')
+                    luminosities.append(f_noirrad(np.log10(M * MJ / ME)))
+                #print("luminosities : ", luminosities)
+                ages = np.array([0.01, 0.05, 0.10, 0.50, 1.0, 3.0, 5.0, 7.0])
+                f_ages = interp1d(np.log10(ages),luminosities,kind='linear',fill_value='extrapolate')
+                L.append(10 ** f_ages(np.log10(star_age)))
+            elif model == "Baraffe_irrad":
+                table = pd.read_csv(r"Baraffe_irrad.csv", delimiter=";")
+                age_dict = [
+                    "t=0.01_log(L/Ls)",
+                    "t=0.05_log(L/Ls)",
+                    "t=0.10_log(L/Ls)",
+                    "t=0.50_log(L/Ls)",
+                    "t=1.00_log(L/Ls)",
+                    "t=3.00_log(L/Ls)",
+                    "t=5.00_log(L/Ls)",
+                    "t=7.00_log(L/Ls)",
+                ]
+                luminosities = [
+                    np.interp(np.log10(M * MJ / ME), np.log10(table["M/M_E"]), table[age])
+                    for age in age_dict
+                ]
+                ages = np.array([0.01, 0.05, 0.10, 0.50, 1.0, 3.0, 5.0, 7.0])
+                L.append(10 ** (np.interp(np.log10(star_age), np.log10(ages), luminosities)))
+
         if Lmean and not Lmax:
             print("Lmean : ", pow(np.prod(L), 1 / len(L)))
             return pow(np.prod(L), 1 / len(L))
         elif Lmax and not Lmean:
             return np.max(L)
-        elif not Lmax and not Lmean :
+        elif not Lmax and not Lmean:
             return L[0]
-        else :
-            raise ValueError("Wrong value for Lmean :{Lmean} or Lmax : {Lmax}, only one can be set to True")
+        else:
+            raise ValueError(
+                "Wrong value for Lmean :{Lmean} or Lmax : {Lmax}, only one can be set to True"
+            )

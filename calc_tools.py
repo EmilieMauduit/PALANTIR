@@ -104,8 +104,10 @@ def calc_nsun(age: float):
     nsun = no / pow((1 + (age / tau)), 1.86)
     return nsun
 
-def calc_Bimf(stardist : float) :
-    Br0=2.6e-9 ; Bp0=2.4e-9 #T
-    Br=Br0*pow(stardist,-2)
-    Bp=Bp0*pow(stardist,-1)
-    return(Br,Bp)
+
+def calc_Bimf(stardist: float):
+    Br0 = 2.6e-9
+    Bp0 = 2.4e-9  # T
+    Br = Br0 * pow(stardist, -2)
+    Bp = Bp0 * pow(stardist, -1)
+    return (Br, Bp)
