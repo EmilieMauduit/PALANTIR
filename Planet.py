@@ -13,8 +13,6 @@ from math import pow
 from typing import List
 from scipy.interpolate import interp1d
 
-from calc_tools import synchro_dist
-
 
 # ============================================================= #
 # --------------------------- Planet -------------------------- #
@@ -72,6 +70,16 @@ class Planet:
         self.rotrate = wrot
         self.detection_method = detection_method
         self.luminosity = luminosity
+    
+    def __str__(self):
+        return("Name : " + self.name + "\n"
+            + "Mass : Mp ={} MJ\n".format(self.mass)
+            + "Radius : Rp ={} RJ\n".format(self.radius)
+            + "Rotation rate : wrot = {} wrotJ\n".format(self.rotrate)
+            + "Orbital period : worb = {} worbJ\n".format(self.orbitperiod)
+            + "Luminosity : Lp = {} LS\n".format(self.luminosity)
+            + "Distance to host star : d_sp = {} AU".format(self.stardist)
+        )
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -124,17 +132,6 @@ class Planet:
         else:
             self._luminosity = luminosity
 
-    def talk(self, talk: bool):
-        if talk:
-            print("Name : ", self.name)
-            print("Mass : ", self.mass, " Mj")
-            print("Radius : ", self.radius, " Rj")
-            print("Rotation rate : ", self.rotrate, " wj")
-            print("Orbital period : ", self.orbitperiod, "woj")
-            print("Luminosity : ", self.luminosity, " Ls")
-            print("_Luminosity : ", self._luminosity, " Ls")
-            print("Distance to host star : ", self.stardist, " AU")
-
     def unnormalize_mass(self):
         mass_jup = 1.8986e27  # kg
         mass = self.mass * mass_jup
@@ -155,12 +152,56 @@ class Planet:
         wrot = self.rotrate * wrot_jup
         return wrot
 
-    def radius_expansion(self, luminosity: float, eccentricity: float):
-        """Compute the factor of expansion of the planetary radius, depending on the distance to the host star.
-        :param mass:
-            Planetary mass, in MJ.
-        :type mass:
+    def radius_expansion(self,luminosity: float, eccentricity: float) :
+        """
+        Compute the factor of expansion of the planetary radius, depending on the equilibrium temperature of the host star.
+        Uses a simple polyfit model of R_measure/R_predicted with respect to equilibrium temperature, (in log-lin scale).
+        And a linear correction from R_measure vs R_predicted*expension factor.
+        :param luminosity:
+            Luminosity of the star, either known or computed from (Tout et al, 1996)
+        :type luminosity:
             float
+        :param eccentricity:
+            Eccentricity of the planetary orbit
+        :type eccentricity:
+            float
+        """
+
+        LS = 3.826e26  # W
+        A = 0.4
+        sigmaSB = 5.670374419e-8
+
+        
+        B = (1 + (eccentricity**2) / 2) ** 2 if not np.isnan(eccentricity) else 1.
+        
+        d = self.stardist * 1.49597870700e11
+        Teq = pow(
+            (1 - A) * luminosity * LS / (16 * np.pi * (d**2) * sigmaSB * B), 1.0 / 4
+        )
+
+        ##expansion factor depending on Teq
+        coeffs_teq = [7.13173118 ,-4.78521151 , 0.93174824]
+        expansion_factor = 0
+        for i,c in enumerate(coeffs_teq):
+            expansion_factor += c*np.power(np.log10(Teq),i)
+        
+        Rp = self._radius
+
+        ##linear correction
+        #coeffs_lin = [-0.19625088 ,1.12337314] #ordre 1 lin-lin
+        #coeffs_lin = [-0.03871932,  1.53046638, -1.96967672, -4.94201306, -2.67400536] #ordre 4 log-log
+        coeffs_lin = [-0.06070923,  1.39140901, -1.19830686, -0.90527977,  0.655981  ]
+        lin_corr = 0
+        for i,c in enumerate(coeffs_lin):
+            lin_corr += c*np.power(np.log10(Rp * expansion_factor),i)
+        
+        self._radius =  (10**lin_corr)
+        #self._radius = Rp * expansion_factor
+        return(Teq)
+
+    def radius_expansion_old(self, luminosity: float, eccentricity: float):
+        """Compute the factor of expansion of the planetary radius, depending on the distance to the host star. 
+        Uses Griessmeier et al, 2007 formula.
         """
 
         LS = 3.826e26  # W
@@ -170,6 +211,7 @@ class Planet:
         cg2 = 1.03
         A = 0.4
         sigmaSB = 5.670374419e-8
+
         B = (1 + (eccentricity**2) / 2) ** 2
         d = self.stardist * 1.49597870700e11
 
@@ -178,9 +220,15 @@ class Planet:
         Teq = pow(
             (1 - A) * luminosity * LS / (16 * np.pi * (d**2) * sigmaSB * B), 1.0 / 4
         )
-
+        coeffs = [7.13173118 ,-4.78521151 , 0.93174824]
+        expansion_factor = 0
+        for i,c in enumerate(coeffs):
+            expansion_factor += c*np.power(np.log10(Teq),i)
+        
         Rp = self._radius
-        self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
+        self._radius = Rp * (expansion_factor)
+        #self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
+        return Teq
 
     def tidal_locking(self, age: float, star_mass: float, Qpp: float = 3.16e5):
         """Computes the rotation rate of the planet depending on a synchronized or free rotation.
@@ -198,7 +246,7 @@ class Planet:
 
         wrot_J = 1.77e-4  # s-1
         d = self.stardist
-        dsync = synchro_dist(
+        dsync = self._calculate_synchro_dist(
             self.rotrate * wrot_J, Qpp, age, self.mass, self.radius, star_mass
         )
         if d <= dsync:
@@ -222,8 +270,16 @@ class Planet:
                     / (1 + pow(mass * 1.8986e27 / Mmax, 2.0 / 3))
                     / RJ
                 )
+            if "polyfit" in model :
+                coeffs = [0.08960267, -0.03390545, -0.32544411,  0.35903958, 0.19102357, -0.1489227,
+                    -0.08079977,  0.01321372,  0.01195444,  0.00157772]
+                Rtemp = 0
+                for i,c in enumerate(coeffs):
+                    Rtemp += c*np.power(np.log10(mass),i)
+                R.append(10**Rtemp)
+
         if Rmean:
-            print("Rmean : ", np.mean(R))
+            #print("Rmean : ", np.mean(R))
             return np.mean(R)
         if Rmax:
             return np.max(R)
@@ -303,7 +359,7 @@ class Planet:
                 L.append(10 ** (np.interp(np.log10(star_age), np.log10(ages), luminosities)))
 
         if Lmean and not Lmax:
-            print("Lmean : ", pow(np.prod(L), 1 / len(L)))
+            #print("Lmean : ", pow(np.prod(L), 1 / len(L)))
             return pow(np.prod(L), 1 / len(L))
         elif Lmax and not Lmean:
             return np.max(L)
@@ -313,3 +369,45 @@ class Planet:
             raise ValueError(
                 "Wrong value for Lmean :{Lmean} or Lmax : {Lmax}, only one can be set to True"
             )
+
+    @staticmethod
+    def _calculate_synchro_dist(
+        wrot: float,
+        Qp: float,
+        tsync: float,
+        planet_mass: float,
+        planet_radius: float,
+        star_mass: float,
+    ):
+        """Compute the distance at which a planet should be so that its orbit is synchronised, depending on the age of the system.
+        :param wrot:
+            orbital period
+        :type wrot:
+            float
+        :param Qp:
+            factor of dissipation by tidal effect
+        :type Qp:
+            float
+        :param tsync:
+            time of synchronization
+        :type tsync:
+            float
+        :param planet_mass:
+            Mass of the planet [Mjup]
+        :type planet_mass:
+            float
+        :param planet_radius:
+            Radius of the planet [Rjup]
+        :type planet_radius:
+            float
+        :param star_mass:
+            Mass of the star [Msun]
+        :type star_mass:
+            float
+        """
+        G = 6.6725985e-11
+        a = 9 * tsync / (4 * wrot * 0.26 * Qp)
+        b = G * planet_mass / pow(planet_radius, 3)
+        c = pow(star_mass / planet_mass, 2)
+        res = planet_radius * pow(a * b * c, 1 / 6)
+        return res

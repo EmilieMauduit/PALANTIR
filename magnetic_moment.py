@@ -16,239 +16,6 @@ from dynamo_region import DynamoRegion
 from stellar_wind import StellarWind
 
 
-# --------------------------------------------------------- #
-# ------------ Useful functions for the class ------------- #
-# --------------------------------------------------------- #
-
-
-# Modèles du moment dipolaire magnétique
-
-# Scale laws
-
-
-def blackett(rc: float, wrot: float, rhoc: float):
-    """Compute the magnetic moment using Blackett's scaling law, 1947.
-    :param rc:
-        Radius of the dynamo region of the planet, normalized to Jupiter's.
-    :type rc:
-        float
-    :param wrot:
-        Rotation rate of the planet, normalized to Jupiter's.
-    :type wrot:
-        float
-    :param rhoc:
-        Density of the dynamo region of the planet, normalized to Jupiter's.
-    :type rhoc:
-        float
-    """
-    return rhoc * wrot * (rc**5)
-
-
-def Busse(rc: float, wrot: float, rhoc: float):
-    """Compute the magnetic moment using Busse's scaling law, 1976.
-    :param rc:
-        Radius of the dynamo region of the planet, normalized to Jupiter's.
-    :type rc:
-        float
-    :param wrot:
-        Rotation rate of the planet, normalized to Jupiter's.
-    :type wrot:
-        float
-    :param rhoc:
-        Density of the dynamo region of the planet, normalized to Jupiter's.
-    :type rhoc:
-        float
-    """
-    res = pow(rhoc, 1 / 2) * wrot * pow(rc, 4)
-    return res
-
-
-def Mizu_moderate(rc: float, wrot: float, rhoc: float, sigma: float = 1.0):
-    """Compute the magnetic moment using moderate Mizutani's scaling law.
-    :param rc:
-        Radius of the dynamo region of the planet, normalized to Jupiter's.
-    :type rc:
-        float
-    :param wrot:
-        Rotation rate of the planet, normalized to Jupiter's.
-    :type wrot:
-        float
-    :param rhoc:
-        Density of the dynamo region of the planet, normalized to Jupiter's.
-    :type rhoc:
-        float
-    :param sigma:
-        Conductivity in the dynamo region of the planet, supposed to be the same as Jupiter's. Default is 1.
-    :type sigma:
-        float
-
-    """
-    res = pow(rhoc, 1 / 2) * pow(wrot, 3 / 4) * pow(rc, 7 / 2) * pow(sigma, -1 / 4)
-    return res
-
-
-def Mizu_slow(rc: float, wrot: float, rhoc: float, sigma: float):
-    """Compute the magnetic moment using slow Mizutani's scaling law.
-    :param rc:
-        Radius of the dynamo region of the planet, normalized to Jupiter's.
-    :type rc:
-        float
-    :param wrot:
-        Rotation rate of the planet, normalized to Jupiter's.
-    :type wrot:
-        float
-    :param rhoc:
-        Density of the dynamo region of the planet, normalized to Jupiter's.
-    :type rhoc:
-        float
-    :param sigma:
-        Conductivity in the dynamo region of the planet, supposed to be the same as Jupiter's. Default is 1.
-    :type sigma:
-        float
-
-    """
-    res = pow(rhoc, 1 / 2) * pow(wrot, 1 / 2) * pow(rc, 3) * pow(sigma, -1 / 4)
-    return res
-
-
-def curtis(rc: float, wrot: float, rhoc: float, heat_flux: float):
-    """Compute the magnetic moment using curtis's scaling law, 1986.
-    :param rc:
-        Radius of the dynamo region of the planet, normalized to Jupiter's.
-    :type rc:
-        float
-    :param wrot:
-        Rotation rate of the planet, normalized to Jupiter's.
-    :type wrot:
-        float
-    :param rhoc:
-        Density of the dynamo region of the planet, normalized to Jupiter's.
-    :type rhoc:
-        float
-    :param heat_flux:
-        Heat flux of the planet, difficult to estimate.
-    :type heat_flux:
-        float
-
-    """
-    a = pow(rhoc, 1 / 3) * pow(wrot, 1 / 2) * pow(heat_flux, 1 / 6)
-    b = pow(rc, 7 / 2)
-    return a * b
-
-
-def sano(rc: float, wrot: float, rhoc: float):
-    """Compute the magnetic moment using Sano's scaling law, 1993.
-    :param rc:
-        Radius of the dynamo region of the planet, normalized to Jupiter's.
-    :type rc:
-        float
-    :param wrot:
-        Rotation rate of the planet, normalized to Jupiter's.
-    :type wrot:
-        float
-    :param rhoc:
-        Density of the dynamo region of the planet, normalized to Jupiter's.
-    :type rhoc:
-        float
-    """
-    a = pow(rhoc, 1 / 2) * pow(rc, 7 / 2) * wrot
-    return a
-
-
-# Simulations
-
-
-def Reiners_Christensen_old(planet: Planet, star: Star, jup: Planet, dyn_rad : float = None):
-
-    """Computing the magnetic moment based on Reiners-Christensen's simulations, 2010.
-    :param planet:
-        The planet for which the magnetic moment will be computed.
-    :type planet:
-        Planet
-    :param star:
-        The host star of the planet.
-    :type star:
-        Star
-    """
-
-    MS = 1.989e30
-    RS = 6.96342e8
-    rcJ = 0.8487819514093978
-    # lum_jup = 1.31e-9  # Lsun
-
-    if planet.name == "Jupiter":
-        lum = 1.0
-        # print("jup")
-    else:
-        lum = planet._luminosity / jup._luminosity
-
-    print("luminosité", planet.name, lum * jup._luminosity, lum)
-    # print("dans RC : L=", L)
-
-    a = planet.mass * (lum**2) * pow(planet.radius, 11)
-
-    if planet.mass > 13.0:
-        res = pow(a, 1.0 / 6) * (2 * sqrt(2) / pow(1 - 0.17, 3))
-    else:
-        Bdyn = 4.8 * pow(
-            (planet.unnormalize_mass() / MS)
-            * ((lum * jup._luminosity) ** 2)
-            * pow(RS / planet.unnormalize_radius(), 7),
-            1.0 / 6,
-        )
-        print("M = {:e}, L = {:e}, R = {:e}".format(planet.unnormalize_mass() / MS,lum * jup._luminosity,planet.unnormalize_radius()/RS))
-        
-
-        if dyn_rad is None :
-            b = pow(1 - (0.17 / planet.mass), 3) / pow((1 - 0.17), 3)
-            Beq = pow(1 - (0.17 / planet.mass), 3) * Bdyn / (2 * sqrt(2))
-        else : 
-            print('RC = {}'.format(dyn_rad))
-            b = pow(dyn_rad,3) #rc already normalized at Jupiter
-            Beq = pow(dyn_rad*rcJ,3) * Bdyn / (2 * sqrt(2))
-        
-        print("Bdyn = {:e} , Beq = {:e}".format(Bdyn, Beq))
-        res = b * pow(a, 1.0 / 6)
-    return res
-
-def Reiners_Christensen(planet: Planet, jup: Planet, dyn_region : DynamoRegion, dynamo_jup : DynamoRegion):
-
-    """Computing the magnetic moment based on Reiners-Christensen's simulations, 2010.
-    :param planet:
-        The planet for which the magnetic moment will be computed.
-    :type planet:
-        Planet
-    :param star:
-        The host star of the planet.
-    :type star:
-        Star
-    """
-
-    MS = 1.989e30
-    RS = 6.96342e8
-    rcJ = 0.8487819514093978
-    # lum_jup = 1.31e-9  # Lsun
-
-    if planet.name == "Jupiter":
-        lum = 1.0
-        # print("jup")
-    else:
-        lum = planet._luminosity / jup._luminosity
-
-    print("luminosité", planet.name, lum * jup._luminosity, lum)
-    # print("dans RC : L=", L)
-    # print("M = {:e}, L = {:e}, R = {:e}".format(planet.unnormalize_mass() / MS,lum * jup._luminosity,planet.unnormalize_radius()/RS))
-    Bdyn = dyn_region.mag_field_dynamo
-    Beq = dyn_region.mag_field_equatorial
-    Bdyn_jup = dynamo_jup.mag_field_dynamo
-    Beq_jup = dynamo_jup.mag_field_equatorial  
-
-    mag_moment = pow(planet.radius,3) * Beq / Beq_jup #eq 4
-    print("Bdyn = {:e} , Beq = {:e}".format(Bdyn_jup, Beq_jup))
-    
-    return mag_moment
-
-
 # ============================================================= #
 # ----------------------- MagneticMoment ---------------------- #
 # ============================================================= #
@@ -276,14 +43,19 @@ class MagneticMoment:
         self.mag_moment = Mm
         self.standoff_dist = Rs
 
+    def __str__(self):
+        models_str =''
+        for m in self.models :
+            models_str = models_str + m + ", "
+
+        return (
+            "Model(s) used: " + models_str + ". \n"
+            + "Magnetic moment, M={} MmJ. \n".format(self.mag_moment)
+            + "Standoff distance, Rs={} m.\n".format(self.standoff_dist)
+        )
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-
-    def talk(self, talk: bool):
-        if talk:
-            print("Model(s) used: ", self.models, ".")
-            print("Magnetic moment, M=", self.mag_moment, " MmJ.")
-            print("Standoff distance, Rs=", self.standoff_dist, " m.")
 
     def normalize_standoff_dist(self, planet: Planet):
         return self.standoff_dist / planet.unnormalize_radius()
@@ -333,33 +105,31 @@ class MagneticMoment:
 
         for model in self.models:
             if model == "blackett":
-                M.append(blackett(dynamo.radius, wrot, dynamo.density))
+                M.append(self._Blackett(dynamo.radius, wrot, dynamo.density))
             if model == "busse":
-                M.append(Busse(dynamo.radius, wrot, dynamo.density))
+                M.append(self._Busse(dynamo.radius, wrot, dynamo.density))
             if model == "mizu_mod":
-                M.append(Mizu_moderate(dynamo.radius, wrot, dynamo.density, 1.0))
+                M.append(self._Mizu_moderate(dynamo.radius, wrot, dynamo.density, 1.0))
             if model == "mizu_slow":
-                M.append(Mizu_slow(dynamo.radius, wrot, dynamo.density, 1.0))
+                M.append(self._Mizu_slow(dynamo.radius, wrot, dynamo.density, 1.0))
             if model == "sano":
-                M.append(sano(dynamo.radius, wrot, dynamo.density))
+                M.append(self._Sano(dynamo.radius, wrot, dynamo.density))
             if model == "rein-chris":
                 if planet.mass >= 0.17:
-                    M.append(Reiners_Christensen(planet, jup, dyn_region=dynamo, dynamo_jup = dynamo_jup))
+                    M.append(self._Reiners_Christensen(planet, jup, dyn_region=dynamo, dynamo_jup = dynamo_jup))
                 else:
                     print(
                         "Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0."
                     )
-                    M.append(0.)
+                    M.append(np.nan)
             if model == "rein-chris-dyn":
                 if planet.mass >= 0.17:
-                    M.append(Reiners_Christensen(planet, jup, dyn_region=dynamo,dynamo_jup = dynamo_jup))
+                    M.append(self._Reiners_Christensen(planet, jup, dyn_region=dynamo,dynamo_jup = dynamo_jup))
                 else:
                     print(
                         "Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0."
                     )
-                    M.append(0.)
-
-        print("Magnetic moment list : ", M)
+                    M.append(np.nan)
 
         if Mmean and not Mmax:
             self.mag_moment = pow(np.prod(M), 1 / len(M))
@@ -389,3 +159,169 @@ class MagneticMoment:
             / (res1 * 8 * (np.pi**2)),
             1 / 6,
         )
+
+    # --------------------------------------------------------- #
+    # --------------------- Static methods -------------------- #
+
+    # Modèles du moment dipolaire magnétique
+
+    # Scale laws
+
+    @staticmethod
+    def _Blackett(rc: float, wrot: float, rhoc: float):
+        """Compute the magnetic moment using Blackett's scaling law, 1947.
+        :param rc:
+            Radius of the dynamo region of the planet, normalized to Jupiter's.
+        :type rc:
+            float
+        :param wrot:
+            Rotation rate of the planet, normalized to Jupiter's.
+        :type wrot:
+            float
+        :param rhoc:
+            Density of the dynamo region of the planet, normalized to Jupiter's.
+        :type rhoc:
+            float
+        """
+        return rhoc * wrot * (rc**5)
+
+    @staticmethod
+    def _Busse(rc: float, wrot: float, rhoc: float):
+        """Compute the magnetic moment using Busse's scaling law, 1976.
+        :param rc:
+            Radius of the dynamo region of the planet, normalized to Jupiter's.
+        :type rc:
+            float
+        :param wrot:
+            Rotation rate of the planet, normalized to Jupiter's.
+        :type wrot:
+            float
+        :param rhoc:
+            Density of the dynamo region of the planet, normalized to Jupiter's.
+        :type rhoc:
+            float
+        """
+        res = pow(rhoc, 1 / 2) * wrot * pow(rc, 4)
+        return res
+
+
+    @staticmethod
+    def _Mizu_moderate(rc: float, wrot: float, rhoc: float, sigma: float = 1.0):
+        """Compute the magnetic moment using moderate Mizutani's scaling law.
+        :param rc:
+            Radius of the dynamo region of the planet, normalized to Jupiter's.
+        :type rc:
+            float
+        :param wrot:
+            Rotation rate of the planet, normalized to Jupiter's.
+        :type wrot:
+            float
+        :param rhoc:
+            Density of the dynamo region of the planet, normalized to Jupiter's.
+        :type rhoc:
+            float
+        :param sigma:
+            Conductivity in the dynamo region of the planet, supposed to be the same as Jupiter's. Default is 1.
+        :type sigma:
+            float
+
+        """
+        res = pow(rhoc, 1 / 2) * pow(wrot, 3 / 4) * pow(rc, 7 / 2) * pow(sigma, -1 / 4)
+        return res
+
+    @staticmethod
+    def _Mizu_slow(rc: float, wrot: float, rhoc: float, sigma: float):
+        """Compute the magnetic moment using slow Mizutani's scaling law.
+        :param rc:
+            Radius of the dynamo region of the planet, normalized to Jupiter's.
+        :type rc:
+            float
+        :param wrot:
+            Rotation rate of the planet, normalized to Jupiter's.
+        :type wrot:
+            float
+        :param rhoc:
+            Density of the dynamo region of the planet, normalized to Jupiter's.
+        :type rhoc:
+            float
+        :param sigma:
+            Conductivity in the dynamo region of the planet, supposed to be the same as Jupiter's. Default is 1.
+        :type sigma:
+            float
+
+        """
+        res = pow(rhoc, 1 / 2) * pow(wrot, 1 / 2) * pow(rc, 3) * pow(sigma, -1 / 4)
+        return res
+
+    @staticmethod
+    def _Curtis(rc: float, wrot: float, rhoc: float, heat_flux: float):
+        """Compute the magnetic moment using curtis's scaling law, 1986.
+        :param rc:
+            Radius of the dynamo region of the planet, normalized to Jupiter's.
+        :type rc:
+            float
+        :param wrot:
+            Rotation rate of the planet, normalized to Jupiter's.
+        :type wrot:
+            float
+        :param rhoc:
+            Density of the dynamo region of the planet, normalized to Jupiter's.
+        :type rhoc:
+            float
+        :param heat_flux:
+            Heat flux of the planet, difficult to estimate.
+        :type heat_flux:
+            float
+
+        """
+        a = pow(rhoc, 1 / 3) * pow(wrot, 1 / 2) * pow(heat_flux, 1 / 6)
+        b = pow(rc, 7 / 2)
+        return a * b
+
+    @staticmethod
+    def _Sano(rc: float, wrot: float, rhoc: float):
+        """Compute the magnetic moment using Sano's scaling law, 1993.
+        :param rc:
+            Radius of the dynamo region of the planet, normalized to Jupiter's.
+        :type rc:
+            float
+        :param wrot:
+            Rotation rate of the planet, normalized to Jupiter's.
+        :type wrot:
+            float
+        :param rhoc:
+            Density of the dynamo region of the planet, normalized to Jupiter's.
+        :type rhoc:
+            float
+        """
+        a = pow(rhoc, 1 / 2) * pow(rc, 7 / 2) * wrot
+        return a
+
+
+    # Simulations
+
+    @staticmethod
+    def _Reiners_Christensen(planet: Planet, jup: Planet, dyn_region : DynamoRegion, dynamo_jup : DynamoRegion):
+
+        """Computing the magnetic moment based on Reiners-Christensen's simulations, 2010.
+        :param planet:
+            The planet for which the magnetic moment will be computed.
+        :type planet:
+            Planet
+        :param dyn_region:
+            The dynamo region of the planet
+        :type dyn_region:
+            DynamoRegion
+        :param dynamo_jup:
+            Jupiter's dynamo region (the magnetic moment of the planet is computed normalized to Jupiter's)
+        :type dynamo_jup:
+            DynamoRegion
+        """
+
+        #Bdyn = dyn_region.mag_field_dynamo ; Bdyn_jup = dynamo_jup.mag_field_dynamo
+        Beq = dyn_region.mag_field_equatorial
+        Beq_jup = dynamo_jup.mag_field_equatorial  
+
+        mag_moment = pow(planet.radius,3) * Beq / Beq_jup #eq 4
+        
+        return mag_moment

@@ -16,8 +16,8 @@ from star import Star
 from planet import Planet
 from dynamo_region import DynamoRegion
 from magnetic_moment import MagneticMoment
-from stellar_wind import StellarWind, parker
-from target import Target
+from stellar_wind import StellarWind
+from emission import Emission
 
 # --------------------------------------------------------- #
 # ------------------- Physical constants ------------------ #
@@ -40,29 +40,38 @@ wE = 7.27e-5  # s-1
 # rc = 0.85 * RJ
 # rhoc = 1800  # kg/m3
 
-# --------------------------------------------------------- #
-# -------------- Configuration settings input ------------- #
-
+# ============================================================= #
+# --------------------------- Config -------------------------- #
+# ============================================================= #
 class Config:
     def __init__(self, config_file : str = "parametres.csv"):
         config = pd.read_csv(config_file, delimiter=';')
         self.database = [config.setting[i] for i in range(2) if config.value[i] == 1]
         self.magnetic_moment_models = [config.setting[i] for i in range(2,9) if config.value[i] == 1]
         self.dynamo_density_models = [config.setting[i] for i in range(9, 11) if config.value[i] == 1]
-        self.planet_radius_models = [config.setting[i] for i in range(12, 13) if config.value[i] == 1]
-        self.star_radius_models = [config.setting[i] for i in range(13, 14) if config.value[i] == 1]
+        self.planet_radius_models = [config.setting[i] for i in range(12, 14) if config.value[i] == 1]
+        self.star_radius_models = [config.setting[i] for i in range(15, 16) if config.value[i] == 1]
         self.planet_luminosity_models = [
-            config.setting[i] for i in range(14, 17) if config.value[i] == 1
+            config.setting[i] for i in range(16, 19) if config.value[i] == 1
         ]
         self.rho_crit = config.value[11]
-        if config.value[5] == 1 :
-            self.rc_dyn = True
-        else :
-            self.rc_dyn = False
-        if config.value[17] == 1:
-            self.talk = True
-        else:
-            self.talk = False
+        self.rc_dyn = True if config.value[5] == 1 else False
+        self.radius_expansion = True if config.value[14] == 1 else False
+        self.sp_type_code = config.value[19]
+        self.talk = True if config.value[20] == 1 else False
+        self.output_params = ["name","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance",
+            "planet_rotation_rate", "planet_orbital_period", "star_mass","star_radius","star_age","earth_distance",
+            "star_magfield","star_rotperiod","star_luminosity","spectral_type", "spectral_type_code","dynamo_density",
+            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","standoff_distance","sw_density","sw_velocity",
+            "coronal_temperature","sw_magfield","alfven_velocity","magnetic_field_planet","freq_max_planet",
+            "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
+            "flux_spi_au", "pow_received_kinetic","pow_received_magnetic", "pow_received_spi","star_magnetic_field",
+            "freq_max_star"]
+        self.output_params_units = ["", "MJ", "RJ", "LS", "AU","wJ","w_orb_J", "MS", "RS", "yr", "pc", "T", "days",
+            "LS", "", "", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "K", "T", "m.s-1", "T", "MHz", "10^14W", 
+            "10^14W", "10^14W","10^10Jy", "10^10Jy", "10^10Jy", "mJy","mJy", "mJy", "T", "MHz"]
+
+        
 
     ############ Methods ############
 
@@ -94,8 +103,9 @@ class Config:
         return data
 
 
-# --------------------------------------------------------- #
-# ----------------------- Prediction ---------------------- #
+# ============================================================= #
+# ------------------------- Prediction ------------------------ #
+# ============================================================= #
 
 class Prediction:
 

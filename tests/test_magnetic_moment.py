@@ -40,4 +40,5 @@ def test_magnetic_moment():
             dynamo=dynamo, planet=planet, star=star, Mmean=True, Mmax=True
         )
 
-    with pytest.warns()
+    with pytest.warns():
+        pass

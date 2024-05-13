@@ -50,7 +50,7 @@ def TOUT(mass: float):
 
 class Star:
     def __init__(
-        self, name: str, mass: float, radius: dict, age: float, obs_dist: float
+        self, name: str, mass: float, radius: dict, age: float, obs_dist: float, sp_type : str
     ):
 
         """Creates a Star object.
@@ -67,7 +67,7 @@ class Star:
         :type R:
             float
         :param t:
-            Star age, in yr.
+            Star age, in Gyr.
         :type t:
             float
         :param s:
@@ -85,9 +85,23 @@ class Star:
         self.radius = radius
         self.age = age * 1e9
         self.obs_dist = obs_dist
+        self.sp_type = sp_type
+        self._sp_type_code = None
         self._rotperiod = None
         self._magfield = None
         self._luminosity = None
+    
+    def __str__(self):
+        return("Star name : " + self.name + "\n"
+            +"Star mass : M* = {} MS\n".format(self.mass)
+            +"Star radius : R* = {} RS\n".format(self.radius)
+            +"Star age : t* = {} Gyr\n".format(self.age * 1e-9)
+            +"Star distance to Earth : s = {} pc\n".format(self.obs_dist)
+            +"Star rotational period : wrot* = {} days\n".format(self.rotperiod)
+            +"Star magnetic field :  B* = {} T\n".format(self.magfield)
+            +"Star luminosity : L* = {} LS\n".format(self.luminosity)
+            +"Spectral type : " + self.sp_type
+        )
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -106,6 +120,16 @@ class Star:
             self._radius = radius
 
     @property
+    def sp_type_code(self):
+        if self._sp_type_code is None :
+            self._sp_type_code = self._decode_sp_type(self.sp_type)
+        return self._sp_type_code
+
+    @property
+    def rotperiod(self):
+        return self._rotperiod
+
+    @property
     def rotperiod(self):
         if self._rotperiod is None:
             self._rotperiod = self._compute_rotperiod(age=self.age)
@@ -119,38 +143,26 @@ class Star:
 
     @property
     def luminosity(self):
-        a = 0.39704170
-        b = 8.52762600
-        c = 0.00025546
-        d = 5.43288900
-        e = 5.56357900
-        f = 0.78866060
-        g = 0.00586685
-        M = self.mass
-        res1 = a * pow(M, 5.5) + b * pow(M, 11)
-        res2 = (
-            c
-            + pow(M, 3)
-            + d * pow(M, 5)
-            + e * pow(M, 7)
-            + f * pow(M, 8)
-            + g * pow(M, 9.5)
-        )
-        self._luminosity = res1 / res2
+        if self._luminosity is None :
+            a = 0.39704170
+            b = 8.52762600
+            c = 0.00025546
+            d = 5.43288900
+            e = 5.56357900
+            f = 0.78866060
+            g = 0.00586685
+            M = self.mass
+            res1 = a * pow(M, 5.5) + b * pow(M, 11)
+            res2 = (
+                c
+                + pow(M, 3)
+                + d * pow(M, 5)
+                + e * pow(M, 7)
+                + f * pow(M, 8)
+                + g * pow(M, 9.5)
+            )
+            self._luminosity = res1 / res2
         return self._luminosity
-
-    def talk(self, talk: bool):
-        if talk:
-            print("Star name : ", self.name)
-            print("Star mass : ", self.mass, " MS")
-            print("Star radius : ", self.radius, " RS")
-            print("Star age : ", self.age * 1e-9, " Gyr")
-            print("Star distance to Earth : ", self.obs_dist, " pc")
-            print("Star rotational period : ", self.rotperiod, " days")
-            print("Star magnetic field :  ", self.magfield, " T")
-            print("Star luminosity : ", self.luminosity, "LS")
-
-    # Methods
 
     def unnormalize_mass(self) -> float:
         MS = 1.989e30  # kg
@@ -210,3 +222,118 @@ class Star:
         Bsun = 1.435e-4  # T
         magfield = Bsun * Psun / rotperiod
         return magfield
+    
+    @staticmethod
+    def _decode_sp_type(sp_type : str):
+        types_roman = ["III", "IV", "VI", "VII", "II", "I"]
+
+        if sp_type == 'nan' :
+            sp_type_code = 2 
+            return sp_type_code 
+        else :
+            sp_type = 'G0V+pul' if (sp_type == 'G0Vpul') else sp_type
+            sp_type = 'M3.5V' if (sp_type == 'M(3.5+/-0.5) V') else sp_type
+
+        #Special type that we do not consider
+            special_type = ['AM Her', 'AM', 'Am', 'Catac. var.']
+
+            for spe in special_type:
+                if spe in sp_type :
+                    sp_type_code = 3
+                    return sp_type_code 
+                    
+            #Checking for binary systems
+            sp_type = sp_type.split('+')
+            if len(sp_type) <= 1 :
+                sp_type = sp_type[0].split('or')		
+
+            sp_type_code = []
+            for sp in sp_type :
+                code = 0
+                #Removing unnecessary spaces
+                names = sp.split(' ')
+                sp=''
+                for i in range (len(names)):
+                    sp += names[i]
+
+                #Discard pulsars
+                if ('wd' in sp.lower()) or ('psr' in sp.lower()) or ('pul' in sp.lower()) :
+                    code = 3
+                
+                if code != 0 :
+                    sp_type_code.append(code)
+                    continue
+
+                #Check for post-fixes
+                postfixes_1 = ['A','B','C','D','E','p','e','m']
+                for pf in postfixes_1 :
+                    if sp[-1] == pf :
+                        sp = sp[0:-1]
+                        print('pf1')
+                        break
+                
+                #postfixes_2 = ['ep','pe']
+                #for pf in postfixes_2 :
+                #	if sp[-2:] == pf :
+                #		sp = sp[0:-2]
+                #		print('pf2')
+                #		break
+
+                sp = sp[0:-5] if (sp[-5:] == 'pecul') else sp
+                sp = sp[0:-6] if (sp[-6:] == 'pecul.') else sp
+
+                #Case of dwarves
+
+                sp = sp[0:-6]+'V' if (sp[-6:] == '-dwarf') else sp
+                sp = sp[0:-5]+'V' if (sp[-5:] == 'dwarf') else sp
+
+                #First check for types in roman numbers
+
+                for rom in types_roman :
+                    if rom in sp :
+                        code = 3
+                        
+                if code != 0 :
+                    sp_type_code.append(3)
+                    continue
+
+                #Prefixes 'd' and 'sd'
+                sp = sp[1:]+'VII' if (sp[0:1].lower() == 'd') else sp
+                sp = sp[2:]+'VI' if (sp[0:2].lower() == 'sd') else sp
+
+                #Postfixes 'Va','Vb','Ia', 'Ib'
+                postfixes_2 = ['Va','Vb','Ia', 'Ib']
+                for pf in postfixes_2 :
+                    if sp[-2:] == pf :
+                        sp = sp[0:-1]
+                        break
+
+                postfixes_3 = ['Vab','Iab']
+                for pf in postfixes_3 :
+                    if sp[-3:] == pf :
+                        sp = sp[0:-2]
+                        break
+
+                if sp == '' :
+                    code = 2 
+                if code != 0 :
+                    sp_type_code.append(code)
+                    continue
+
+                code = 3 if (sp[-1:] == 'I' or sp[-2:] == 'IV') else 0
+                if code != 0 :
+                    sp_type_code.append(code)
+                    continue
+
+                code = 1 if (sp[-1:] == 'V') else 0
+                if code != 0 :
+                    sp_type_code.append(code)
+                    continue
+
+                if code == 0 :
+                    code = 2
+                    sp_type_code.append(code)
+                    continue
+            sp_type_code = np.array(sp_type_code)
+
+            return np.min(sp_type_code)			
