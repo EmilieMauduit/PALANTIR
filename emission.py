@@ -216,14 +216,11 @@ class Emission:
                 standoff_dist_jup = 40.1  # RJ
                 prad_jup = 2.1e11  # W        
                 veff_jup = 523e3  # m/s
-                self._pow_emission_magnetic = (
+                self._pow_emission_spi = (
                 prad_jup
                 * (value["stellar_wind"].effective_velocity / veff_jup)
                 * pow(value["stellar_wind"].mag_field / value["sw_jupiter"].mag_field, 2)
-                * pow(
-                    value["magnetic_moment"].normalize_standoff_dist(planet=value["planet"])
-                    * R_iono
-                    / standoff_dist_jup,
+                * pow(value["planet"].radius,
                     2,
                 )
             )

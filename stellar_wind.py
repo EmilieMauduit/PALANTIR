@@ -70,11 +70,11 @@ class StellarWind:
         vorb = sqrt(
             G * value["star"].unnormalize_mass() / (value["planet"].stardist * dua)
         )
-        Bimf_r, Bimf_p = self._calc_Bimf(stardist=value["planet"].stardist)
+        Bimf_r, Bimf_p = self._calc_Bimf(stardist=value["planet"].stardist,magfield_surf = value["star"].magfield)
         alpha = atan(Bimf_p / Bimf_r)
         beta = atan(vorb / value["vsw"])
-        Bimf_r *= Psun / value["star"].rotperiod
-        Bimf_p *= Psun / value["star"].rotperiod
+        #Bimf_r *= Psun / value["star"].rotperiod
+        #Bimf_p *= Psun / value["star"].rotperiod
         self._mag_field = sqrt(Bimf_r**2 + Bimf_p**2) * abs(sin(alpha - beta))
 
     @property
@@ -133,9 +133,14 @@ class StellarWind:
         return nsun
 
     @staticmethod
-    def _calc_Bimf(stardist: float):
-        Br0 = 2.6e-9
-        Bp0 = 2.4e-9  # T
+    def _calc_Bimf(stardist: float, magfield_surf : float = None):
+
+        if magfield_surf is None :
+            Br0 = 2.6e-9
+            Bp0 = 2.4e-9  # T
+        else :
+            Br0 = magfield_surf
+            Bp0 = magfield_surf
         Br = Br0 * pow(stardist, -2)
         Bp = Bp0 * pow(stardist, -1)
         return (Br, Bp)
@@ -336,7 +341,6 @@ class StellarWind:
         vc = sqrt(2 * kb * T / mp)
         rc = mp * G * star.unnormalize_mass() / (4 * kb * T)
         vorb = sqrt(G * star.unnormalize_mass() / (d * dua))
-        print(d)
         # Warning messages
         if d < 0.01:
             print(

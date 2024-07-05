@@ -12,6 +12,7 @@ import numpy as np
 from math import pow
 from typing import List
 from scipy.interpolate import interp1d
+from astroquery.simbad import Simbad
 
 
 # ============================================================= #

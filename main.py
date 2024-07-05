@@ -9,6 +9,7 @@ Created on Fri Dec  3 10:09:06 2021
 # --------------------------------------------------------- #
 # ------------------------ Imports ------------------------ #
 
+from cmath import nan
 from warnings import WarningMessage
 import os
 import pandas as pd
@@ -62,13 +63,12 @@ selection_config = pd.read_csv(
 # --------------------------------------------------------- #
 # ---------------------- Data input ----------------------- #
 
-data =pd.read_csv(r'/Users/emauduit/Documents/These/target_selection/Programmes/exoplanet.eu_catalog.csv')
-#, index_col=0)
-#data =pd.read_csv(r'/Users/emauduit/Documents/These/target_selection/Programmes/data_M_VS_Mmag_R1.csv')#, index_col=0)
-#data = pd.read_csv(
-#    r"/Users/emauduit/Documents/These/target_selection/Programmes/planet_test_unique.csv",
-#    delimiter=";")
+dict_data = { 'nasa_data' : 'exoplanet_catalog_NASA.csv',
+            'exoplanet_data' : 'exoplanet.eu_catalog.csv',
+            'custom_data' : 'custom_dataset.csv'}
 
+
+data =pd.read_csv(dict_data[config_param.database])
 data = config_param.param_names(data=data)
 
 # --------------------------------------------------------- #
@@ -76,13 +76,13 @@ data = config_param.param_names(data=data)
 # --------------------------------------------------------- #
 
 sun = Star(
-    name="Soleil",
+    name="Sun",
     mass=1.0,
     radius={"models": config_param.star_radius_models, "radius": 1.0},
     age=AS,
     obs_dist=1.0,
-    sp_type ='V'
-)
+    sp_type ='GV',
+    )
 jup = Planet(
     name="Jupiter",
     mass=1.0,
@@ -97,6 +97,8 @@ jup = Planet(
     wrot=1.0,
 )
 jup.tidal_locking(age=4.6e9, star_mass=1.0)
+sun.compute_effective_temperature(np.nan)
+sun.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : 1.435})
 dyn_region_jup = DynamoRegion.from_planet(planet=jup, rhocrit=config_param.rho_crit)
 dyn_region_jup.magnetic_field(planet=jup,rc_dyn=config_param.rc_dyn, jup=True)
 mag_moment_jup = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.56e27, Rs=1.0)
@@ -104,7 +106,6 @@ vjup, vejup, nejup, Tjup = StellarWind._Parker(star=sun, planet=jup, T=0.81e6)
 sw_jup = StellarWind(
     ne=nejup, ve=vejup, Tcor=Tjup, Bsw={"planet": jup, "star": sun, "vsw": vjup}
 )
-
 selected_targets = []
 
 i = 1
@@ -168,13 +169,13 @@ for target in data.itertuples():
             wrot=1.0,
         )
         star = Star(
-            name="star",
+            name=target.star_name,
             mass=target.star_mass,
             radius={"models": config_param.star_radius_models, "radius": target.star_radius},
             age=star_age,
             obs_dist=target.star_distance,
-            sp_type = str(target.star_sp_type)
-        )
+            sp_type = config_param.retrieve_spectral_type(star_name = target.star_name,sp_type = str(target.star_sp_type)),
+            )
 
         if np.isnan(target.radius) and config_param.radius_expansion :
             planet.radius_expansion(luminosity=star.luminosity, eccentricity=target.eccentricity)
@@ -187,15 +188,33 @@ for target in data.itertuples():
         if star.sp_type_code > config_param.sp_type_code :
             skipped_targets.write(target.pl_name + ': star spectral type is not consistent with configuration parameters.\n')
             continue
+        #### Computing stellar magnetic field
+        catalog_Bstar = pd.read_csv('crossmatch_mag_exo.csv', delimiter=',')
+        crossmatch = catalog_Bstar[catalog_Bstar['Simbad_ID']==star.main_id]
+        if crossmatch.size > 0 :
+            mag_field = np.array(crossmatch['Bestim_G'])[0]
+            Teff = target.star_teff
+        else :
+            mag_field = np.nan
+            Teff = target.star_teff
+
+        star.compute_effective_temperature(Teff)
+        try :
+            star.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : mag_field})
+        except OverflowError :
+            skipped_targets.write(target.pl_name + ': divergence in stellar magnetic field estimate\n')
+            continue
 
         dyn_region = DynamoRegion.from_planet(planet=planet, rhocrit=config_param.rho_crit)
         dyn_region.normalize(other=dyn_region_jup)
         dyn_region.magnetic_field(planet=planet, rc_dyn=config_param.rc_dyn)
+
         try:
             stellar_wind = StellarWind.from_system(star=star, planet=planet)
         except ValueError:
             skipped_targets.write(target.pl_name + ' : divergence in stellar wind calculation\n')
             continue
+
         magnetic_moment = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.0, Rs=1.0)
         magnetic_moment.magnetic_moment(
             dynamo=dyn_region, planet=planet, jup=jup, dynamo_jup = dyn_region_jup
@@ -235,6 +254,7 @@ for target in data.itertuples():
             planet.stardist,
             planet.rotrate,
             planet.orbitperiod,
+            star.main_id,
             star.mass,
             star.radius,
             star.age,
@@ -244,6 +264,7 @@ for target in data.itertuples():
             star.luminosity,
             star.sp_type,
             star.sp_type_code,
+            star.effective_temperature,
             dyn_region.density,
             dyn_region.radius, #/ planet.unnormalize_radius(),
             dyn_region.mag_field_dynamo,
@@ -266,7 +287,6 @@ for target in data.itertuples():
             target_emission._pow_received_kinetic* 1e3/ 1e-26,
             target_emission._pow_received_magnetic* 1e3/ 1e-26,
             target_emission._pow_received_spi* 1e3/ 1e-26,
-            star._magfield,
             target_emission.freq_max_star/ 1e6,
         ], index = config_param.output_params)
         )
@@ -276,6 +296,8 @@ for target in data.itertuples():
         skipped_targets.write(target.pl_name + ' : semi-major axis, planetary mass or star mass unknown.\n')
     # if mytarget.select_target():
     # selected_targets.append(mytarget)
+print(sun)
+print(sw_jup)
 
 skipped_targets.close()
 df_target = pd.concat([df_target]+new_columns, axis=1)
@@ -287,13 +309,13 @@ df_target = df_target.transpose()
 
 dateoftheday = datetime.datetime.today().isoformat().split(':')
 dateofrun = dateoftheday[0] + 'h' + dateoftheday[1]
-os.system('mkdir /Users/emauduit/Documents/These/target_selection/Runs/'+dateofrun)
-os.system('cp parametres.csv /Users/emauduit/Documents/These/target_selection/Runs/'+dateofrun+'/parameters.csv')
-os.system('cp skipped_targets.txt /Users/emauduit/Documents/These/target_selection/Runs/'+dateofrun+'/skipped_targets.txt')
+os.system('mkdir '+config_param.output_path +'/Runs/'+dateofrun)
+os.system('cp parametres.csv '+config_param.output_path +'/Runs/'+dateofrun+'/parameters.csv')
+os.system('cp skipped_targets.txt '+config_param.output_path +'/Runs/'+dateofrun+'/skipped_targets.txt')
 os.system('rm skipped_targets.txt')
 
-data.to_csv("/Users/emauduit/Documents/These/target_selection/Runs/"+dateofrun+"/catalog_input.csv", sep=";", index=False)
-df_target.to_csv("/Users/emauduit/Documents/These/target_selection/Runs/"+dateofrun+"/main_output.csv", sep=";", index=False)
+data.to_csv(config_param.output_path +"/Runs/"+dateofrun+"/catalog_input.csv", sep=";", index=False)
+df_target.to_csv(config_param.output_path +"/Runs/"+dateofrun+"/main_output.csv", sep=";", index=False)
 
 # Sorting values by power of emission and by frequency
 
