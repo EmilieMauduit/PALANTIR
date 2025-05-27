@@ -13,14 +13,19 @@ import os
 import pandas as pd
 import numpy as np
 import datetime
+import palantir
+from importlib_resources import files
 
-from star import Star
-from planet import Planet
-from dynamo_region import DynamoRegion
-from magnetic_moment import MagneticMoment
-from stellar_wind import StellarWind
-from emission import Emission
-from target_selection import Config
+from palantir.prediction_tools.star import Star
+from palantir.prediction_tools.planet import Planet
+from palantir.prediction_tools.dynamo_region import DynamoRegion
+from palantir.prediction_tools.magnetic_moment import MagneticMoment
+from palantir.prediction_tools.stellar_wind import StellarWind
+from palantir.prediction_tools.emission import Emission
+from palantir.prediction_tools.target_selection import Config
+
+import logging
+log = logging.getLogger('palantir.scripts.main')
 
 # --------------------------------------------------------- #
 # ------------------- Physical constants ------------------ #
@@ -49,6 +54,13 @@ wE = 7.27e-5  # s-1
 
 config_param = Config()
 
+dateoftheday = datetime.datetime.today().isoformat().split(':')
+dateofrun = dateoftheday[0] + 'h' + dateoftheday[1]
+maps_dir = files("palantir.scripts.input_files")
+
+palantir.setup_logging(log_filepath=config_param.output_path + dateofrun + '/',verbose=config_param.talk)
+log.info('This run was made with version {} of PALANTIR.'.format(palantir.__version__))
+
 # Criterions for target selection
 
 selection_config = pd.read_csv(
@@ -65,7 +77,7 @@ dict_data = { 'nasa_data' : 'exoplanet_catalog_NASA.csv',
             'custom_data' : 'custom_dataset.csv'}
 
 
-data =pd.read_csv(dict_data[config_param.database])
+data =pd.read_csv(maps_dir / dict_data[config_param.database])
 data = config_param.param_names(data=data)
 
 # --------------------------------------------------------- #
@@ -115,7 +127,7 @@ df_target['0'] = pd.Series(config_param.output_params_units, index = config_para
 new_columns = []
 
 for target in data.itertuples():
-    print(target.pl_name)
+    log.info("Planet : {}".format(target.pl_name))
     if ('PSR' in target.pl_name) or ('Pulsar' in target.pl_name) :
         print('Warning : {} has been skipped'.format(target.pl_name))
         skipped_targets.write(target.pl_name + ': pulsar \n')
@@ -140,7 +152,7 @@ for target in data.itertuples():
             star_age = 5.2
         else:
             if target.star_age <= 1e-7:
-                print("Stellar age is too small (< 100 yr) !!!")
+                log.info("Stellar age is too small (< 100 yr) !!!")
                 skipped_targets.write(target.pl_name + ': stellar age is too small\n')
                 continue
             elif target.star_age < 0.7:
@@ -149,6 +161,7 @@ for target in data.itertuples():
                 star_age = target.star_age
         
         if np.isnan(target.orbital_period) :
+            log.info("Planetary orbital period unknown")
             skipped_targets.write(target.pl_name + ': planetary orbital period unknown\n')
             continue
 
@@ -180,14 +193,17 @@ for target in data.itertuples():
         try:
             planet.tidal_locking(age=star.age, star_mass=star.mass)
         except OverflowError:
+            log.info("Divergence in tidal locking")
             skipped_targets.write(target.pl_name + ': divergence in tidal locking\n')
             continue
         
         if star.sp_type_code > config_param.sp_type_code :
+            log.info("Star spectral type is not consistent with configuration parameters.")
             skipped_targets.write(target.pl_name + ': star spectral type is not consistent with configuration parameters.\n')
             continue
+
         #### Computing stellar magnetic field
-        catalog_Bstar = pd.read_csv('crossmatch_mag_exo.csv', delimiter=',')
+        catalog_Bstar = pd.read_csv(maps_dir / 'crossmatch_mag_exo.csv', delimiter=',')
         crossmatch = catalog_Bstar[catalog_Bstar['Simbad_ID']==star.main_id]
         if crossmatch.size > 0 :
             mag_field = np.array(crossmatch['Bestim_G'])[0]
@@ -200,6 +216,7 @@ for target in data.itertuples():
         try :
             star.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : mag_field})
         except OverflowError :
+            log.info("Divergence in stellar magnetic field estimate")
             skipped_targets.write(target.pl_name + ': divergence in stellar magnetic field estimate\n')
             continue
 
@@ -210,6 +227,7 @@ for target in data.itertuples():
         try:
             stellar_wind = StellarWind.from_system(star=star, planet=planet)
         except ValueError:
+            log.info("Divergence in stellar wind calculation")
             skipped_targets.write(target.pl_name + ' : divergence in stellar wind calculation\n')
             continue
 
@@ -220,7 +238,7 @@ for target in data.itertuples():
         magnetic_moment.magnetosphere_radius(mag_moment_jup, stellar_wind=stellar_wind)
         if magnetic_moment.normalize_standoff_dist(planet) < 1:
             magnetic_moment.standoff_dist = planet.unnormalize_radius()
-            print("Magnetosphere radius lower than 1.")
+            log.info("Magnetosphere radius lower than 1.")
             
         target_emission = Emission(
             name=planet.name,
@@ -306,9 +324,6 @@ df_target = df_target.transpose()
 # --------------------------------------------------------- #
 # -------- Saving input and output in one folder  --------- #
 
-
-dateoftheday = datetime.datetime.today().isoformat().split(':')
-dateofrun = dateoftheday[0] + 'h' + dateoftheday[1]
 os.system('mkdir '+config_param.output_path +'/Runs/'+dateofrun)
 os.system('cp parametres.csv '+config_param.output_path +'/Runs/'+dateofrun+'/parameters.csv')
 os.system('cp skipped_targets.txt '+config_param.output_path +'/Runs/'+dateofrun+'/skipped_targets.txt')
