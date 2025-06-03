@@ -3,14 +3,14 @@
 import logging
 
 def setup_logging(log_filepath: str = "", verbose: bool = False):
-    logger = logging.getLogger("taska_a2")
+    logger = logging.getLogger("palantir")
     logger.setLevel(logging.DEBUG)
 
     if logger.handlers:
         return 
 
-    file_handler = logging.FileHandler(log_filepath + "taska_info.log")
-    file_handler.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(log_filepath + "palantir_info.log")
+    file_handler.setLevel(logging.DEBUG)
     file_format = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',

@@ -13,7 +13,7 @@ import math as m
 import logging
 log = logging.getLogger('palantir.prediction_tools.dynamo_region')
 
-from planet import Planet
+from palantir.prediction_tools.planet import Planet
 
 
 # ============================================================= #

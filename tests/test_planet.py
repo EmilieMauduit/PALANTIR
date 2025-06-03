@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from planet import Planet
+from palantir.prediction_tools import Planet
 
 
 @pytest.fixture
@@ -9,12 +9,13 @@ def planet_data():
     """Fixture for creating a sample planet with default values."""
     radius_data = {"models": ["radius_original"], "radius": np.nan}
     worb_data = {"star_mass": 1.0, "worb": np.nan}
-    luminosity_data = {"models": ["Burrows"], "luminosity": np.nan, "star_age": 4.5}
+    luminosity_data = {"models": ["Burrows","Baraffe_irrad","Baraffe_noirrad"], "luminosity": np.nan, "star_age": 4.5}
     return {
         "name": "TestPlanet",
         "mass": 1.0,
         "radius": radius_data,
         "distance": 5.0,
+        "eccentricity" : 0,
         "worb": worb_data,
         "luminosity": luminosity_data,
         "detection_method": "transit",
@@ -33,6 +34,7 @@ def test_constructor(planet_instance):
     assert planet_instance.name == "TestPlanet"
     assert planet_instance.mass == 1.0
     assert planet_instance.stardist == 5.0
+    assert planet_instance.eccentricity == 0.
     assert planet_instance.detection_method == "transit"
     assert isinstance(planet_instance.radius, float)
     assert isinstance(planet_instance.orbitperiod, float)
@@ -81,21 +83,6 @@ def test_unnormalize_rotrate(planet_instance):
     expected_rotrate = planet_instance.rotrate * jupiter_rotation_rate
     assert planet_instance.unnormalize_rotrate() == pytest.approx(expected_rotrate, rel=1e-5)
 
-
-# Test for Tidal Locking
-def test_tidal_locking(planet_instance):
-    star_mass = 1.0
-    age = 4.5
-    initial_rotation_rate = planet_instance.rotrate
-    planet_instance.tidal_locking(age=age, star_mass=star_mass)
-    if planet_instance.stardist <= planet_instance._calculate_synchro_dist(
-        planet_instance.rotrate, Qp=3.16e5, tsync=age, planet_mass=planet_instance.mass,
-        planet_radius=planet_instance.radius, star_mass=star_mass):
-        assert planet_instance.rotrate == planet_instance.orbitperiod
-    else:
-        assert planet_instance.rotrate == initial_rotation_rate
-
-
 # Test _calculate_radius Static Method
 def test_calculate_radius():
     radius = Planet._calculate_radius(models=["radius_original"], mass=1.0)
@@ -117,3 +104,20 @@ def test_calculate_synchro_dist():
     )
     assert isinstance(distance, float)
     assert distance > 0
+
+# Test for Tidal Locking
+def test_tidal_locking(planet_instance):
+    star_mass = 1.0
+    age = 4.5
+    initial_rotation_rate = planet_instance.rotrate
+    planet_instance.tidal_locking(age=age, star_mass=star_mass)
+    if planet_instance.stardist <= planet_instance._calculate_synchro_dist(
+        planet_instance.rotrate, Qp=3.16e5, tsync=age, planet_mass=planet_instance.mass,
+        planet_radius=planet_instance.radius, star_mass=star_mass):
+        assert planet_instance.rotrate == planet_instance.orbitperiod
+    else:
+        assert planet_instance.rotrate == initial_rotation_rate
+
+def test_radius_expansion(planet_instance):
+    planet_instance.radius_expansion(luminosity = 1.)
+    assert planet_instance.radius > 0

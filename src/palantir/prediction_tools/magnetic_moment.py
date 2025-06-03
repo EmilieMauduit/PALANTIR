@@ -8,12 +8,11 @@ Created on Thu Dec  2 15:46:05 2021
 
 import numpy as np
 from typing import List
-from math import sqrt, pow
+from math import pow
 
-from planet import Planet
-from star import Star
-from dynamo_region import DynamoRegion
-from stellar_wind import StellarWind
+from palantir.prediction_tools.planet import Planet
+from palantir.prediction_tools.dynamo_region import DynamoRegion
+from palantir.prediction_tools.stellar_wind import StellarWind
 
 import logging
 log = logging.getLogger('palantir.prediction_tools.magnetic_moment')
@@ -24,7 +23,7 @@ log = logging.getLogger('palantir.prediction_tools.magnetic_moment')
 
 
 class MagneticMoment:
-    def __init__(self, models: List[str], Mm: float, Rs: float):
+    def __init__(self, models: List[str], Mm: float = None, Rs: float = None):
         """Creates a MgneticMoment object, characterized by a value of the magnetic moment and the corresponding radius of the magnetosphere.
 
         :param models:
@@ -142,6 +141,7 @@ class MagneticMoment:
         elif not Mmean and not Mmax:
             self.mag_moment = M[0]
         else:
+            log.error("Wrong value for Mmean :{Mmean} or Mmax : {Mmax}, only one can be set to True")
             raise ValueError(
                 "Wrong value for Mmean :{Mmean} or Mmax : {Mmax}, only one can be set to True"
             )
@@ -167,9 +167,7 @@ class MagneticMoment:
     # --------------------------------------------------------- #
     # --------------------- Static methods -------------------- #
 
-    # Modèles du moment dipolaire magnétique
-
-    # Scale laws
+    # Different available scaling laws for magnetic moment
 
     @staticmethod
     def _Blackett(rc: float, wrot: float, rhoc: float):

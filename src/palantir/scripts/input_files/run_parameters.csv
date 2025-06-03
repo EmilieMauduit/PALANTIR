@@ -21,6 +21,7 @@ Baraffe_irrad;0
 Baraffe_noirrad;1
 sp_type_code;1
 Bstar_original;0
-Bstar_polyfit;1
+Bstar_polyfit;0
+Bstar_catalog_only;1
 talk;0
 path_outputs;/Users/emauduit/Documents/These/target_selection

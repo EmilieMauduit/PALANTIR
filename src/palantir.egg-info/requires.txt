@@ -1,0 +1,4 @@
+pandas
+astroquery
+numpy
+scipy

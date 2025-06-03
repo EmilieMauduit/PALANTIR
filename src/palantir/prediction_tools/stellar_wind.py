@@ -9,11 +9,11 @@ from scipy import optimize
 import numpy as np
 from math import sqrt, log, atan, sin
 
-from planet import Planet
-from star import Star
+from palantir.prediction_tools.planet import Planet
+from palantir.prediction_tools.star import Star
 
 import logging
-log = logging.getLogger('palantir.prediction_tools.stellar_wind')
+logger = logging.getLogger('palantir.prediction_tools.stellar_wind')
 # ============================================================= #
 # ------------------------ StellarWind ------------------------ #
 # ============================================================= #
@@ -65,7 +65,7 @@ class StellarWind:
     @mag_field.setter
     def mag_field(self, value: dict):
         if ("planet" or "star" or "vsw") not in value:
-            log.error("KeyError : Planet or Star or SW velocity not in value.")
+            logger.error("KeyError : Planet or Star or SW velocity not in value.")
             raise KeyError("Planet or Star or SW velocity not in value.")
         G = 6.6725985e-11  # N.m^2/kg^2
         dua = 1.49597870700e11  # m
@@ -362,12 +362,12 @@ class StellarWind:
         vorb = sqrt(G * star.unnormalize_mass() / (d * dua))
         # Warning messages
         if d < 0.01:
-            log.warning("Warning : The Parker model has not been verified for such star-planet distances")
+            logger.warning("Warning : The Parker model has not been verified for such star-planet distances")
             print(
                 "Warning : The Parker model has not been verified for such star-planet distances"
             )
         if t < 0.7e9:
-            log.warning("Warning : The Parker model is not precise for stars with t<0.7 Gyr")
+            logger.warning("Warning : The Parker model is not precise for stars with t<0.7 Gyr")
             print("Warning : The Parker model is not precise for stars with t<0.7 Gyr")
 
         if d >= 1.0:
@@ -412,7 +412,7 @@ class StellarWind:
         Mls = StellarWind._mass_lossrate(t, star.radius)
         n = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
         if n < 0:
-            log.error("Negative stellar wind density is not physical.")
+            logger.error("Negative stellar wind density is not physical.")
             raise ValueError("Negative stellar wind density is not physical.")
         return (v, veff, n, T)
 

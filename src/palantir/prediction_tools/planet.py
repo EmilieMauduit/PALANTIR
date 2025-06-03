@@ -28,6 +28,7 @@ class Planet:
         mass: float,
         radius: dict,
         distance: float,
+        eccentricity: float,
         worb: dict,
         luminosity: dict,
         detection_method: str = None,
@@ -46,21 +47,29 @@ class Planet:
             Radius of the planet, expected to be normalized to Jupiter's.
         :type radius:
             float
-        :param wrot:
-            Rotation rate of the planet, expected to be normalized to Jupiter's.
-        :type wrot:
+        :param distance:
+            Distance between the planet and its host star, in AU.
+        :type distance:
+            float
+        :param eccentricity:
+            Eccentricity of the orbit, adimensional. Should be between 0 and 1.
+        :type eccentricity:
             float
         :param worb:
             Orbital period of the planet, expected to be normalized to Jupiter's.
         :type worb:
             float
-        :param distance:
-            Distance between the planet and its host star, in AU.
-        :type distance:
+        :param luminosity:
+            Equivalent luminosity of the planet, expected to be normalized to the Sun's.
+        :type luminosity:
             float
-        :param axis:
-            Semi-major axis, in AU.
-        :type axis:
+        :param detection_method:
+            The method used to detect this planet.
+        :type detection_method:
+            str
+        :param wrot:
+            Rotation rate of the planet, expected to be normalized to Jupiter's.
+        :type wrot:
             float
         """
 
@@ -68,6 +77,7 @@ class Planet:
         self.mass = mass
         self.radius = radius
         self.stardist = distance
+        self.eccentricity = eccentricity
         self.orbitperiod = worb
         self.rotrate = wrot
         self.detection_method = detection_method
@@ -154,7 +164,7 @@ class Planet:
         wrot = self.rotrate * wrot_jup
         return wrot
 
-    def radius_expansion(self,luminosity: float, eccentricity: float) :
+    def radius_expansion(self,luminosity: float) -> None :
         """
         Compute the factor of expansion of the planetary radius, depending on the equilibrium temperature of the host star.
         Uses a simple polyfit model of R_measure/R_predicted with respect to equilibrium temperature, (in log-lin scale).
@@ -174,7 +184,7 @@ class Planet:
         sigmaSB = 5.670374419e-8
 
         
-        B = (1 + (eccentricity**2) / 2) ** 2 if not np.isnan(eccentricity) else 1.
+        B = (1 + (self.eccentricity**2) / 2) ** 2 if not np.isnan(self.eccentricity) else 1.
         
         d = self.stardist * 1.49597870700e11
         Teq = pow(
@@ -190,18 +200,14 @@ class Planet:
         Rp = self._radius
 
         ##linear correction
-        #coeffs_lin = [-0.19625088 ,1.12337314] #ordre 1 lin-lin
-        #coeffs_lin = [-0.03871932,  1.53046638, -1.96967672, -4.94201306, -2.67400536] #ordre 4 log-log
         coeffs_lin = [-0.06070923,  1.39140901, -1.19830686, -0.90527977,  0.655981  ]
         lin_corr = 0
         for i,c in enumerate(coeffs_lin):
             lin_corr += c*np.power(np.log10(Rp * expansion_factor),i)
         
         self._radius =  (10**lin_corr)
-        #self._radius = Rp * expansion_factor
-        return(Teq)
 
-    def radius_expansion_old(self, luminosity: float, eccentricity: float):
+    def radius_expansion_jmg2007(self, luminosity: float):
         """Compute the factor of expansion of the planetary radius, depending on the distance to the host star. 
         Uses Griessmeier et al, 2007 formula.
         """
@@ -214,7 +220,7 @@ class Planet:
         A = 0.4
         sigmaSB = 5.670374419e-8
 
-        B = (1 + (eccentricity**2) / 2) ** 2
+        B = (1 + (self.eccentricity**2) / 2) ** 2
         d = self.stardist * 1.49597870700e11
 
         T0 = ct1 * pow(self.mass, ct2)
@@ -222,14 +228,8 @@ class Planet:
         Teq = pow(
             (1 - A) * luminosity * LS / (16 * np.pi * (d**2) * sigmaSB * B), 1.0 / 4
         )
-        coeffs = [7.13173118 ,-4.78521151 , 0.93174824]
-        expansion_factor = 0
-        for i,c in enumerate(coeffs):
-            expansion_factor += c*np.power(np.log10(Teq),i)
-        
         Rp = self._radius
-        self._radius = Rp * (expansion_factor)
-        #self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
+        self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
         return Teq
 
     def tidal_locking(self, age: float, star_mass: float, Qpp: float = 3.16e5):
@@ -362,13 +362,13 @@ class Planet:
                 L.append(10 ** (np.interp(np.log10(star_age), np.log10(ages), luminosities)))
 
         if Lmean and not Lmax:
-            #print("Lmean : ", pow(np.prod(L), 1 / len(L)))
             return pow(np.prod(L), 1 / len(L))
         elif Lmax and not Lmean:
             return np.max(L)
         elif not Lmax and not Lmean:
             return L[0]
         else:
+            log.error("Wrong value for Lmean :{Lmean} or Lmax : {Lmax}, only one can be set to True")
             raise ValueError(
                 "Wrong value for Lmean :{Lmean} or Lmax : {Lmax}, only one can be set to True"
             )

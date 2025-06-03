@@ -3,11 +3,13 @@
 from .prediction_tools import *
 from .output_analysis import *
 from .scripts import *
+from .logger import *
 
 __all__ = [
     "prediction_tools",
     "output_analysis",
-    "scripts"
+    "scripts",
+    "setup_logging"
 ]
 
 __author__ = "Emilie Mauduit"

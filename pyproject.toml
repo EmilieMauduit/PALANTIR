@@ -8,9 +8,7 @@ dependencies = [
     "pandas",
     "astroquery",
     "numpy",
-    "scipy",
-    "math",
-
+    "scipy"
 ]
 authors = [
   {name = "Emilie Mauduit", email = "emilie.mauduit@obspm.fr"},
@@ -27,19 +25,19 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.urls]
-Homepage = ""
+Homepage = "https://github.com/EmilieMauduit/PALANTIR"
 Documentation = "https://readthedocs.org"
-Repository = ""
-"Bug Tracker" = ""
+Repository = "https://github.com/EmilieMauduit/PALANTIR"
+"Bug Tracker" = "https://github.com/EmilieMauduit/PALANTIR/issues"
 
 [tool.pytest.ini_options]
-pythonpath = "src/palantir"
+pythonpath = "tests/"
 python_files = "test_*.py"
 python_functions = "test_"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src","tests"]
 [tool.setuptools.package-data]
 "palantir.input_files" = ["*.csv"]

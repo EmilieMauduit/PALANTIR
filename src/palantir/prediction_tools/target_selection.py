@@ -14,7 +14,7 @@ from astroquery.simbad import Simbad
 from importlib_resources import files
 
 import logging
-log = logging.getLogger('palantir.prediction_tools.target_selection')
+logger = logging.getLogger('palantir.prediction_tools.target_selection')
 
 # --------------------------------------------------------- #
 # ------------------- Physical constants ------------------ #
@@ -50,7 +50,7 @@ class Config:
 
         database = [config.setting[i] for i in range(3) if int(config.value[i]) == 1]
         if len(database) > 1 :
-            log.error('ValueError : Only one database can be used, two were given in the configuration file')
+            logger.error('ValueError : Only one database can be used, two were given in the configuration file')
             raise ValueError('Only one database can be used, two were given in the configuration file')
         else :
             self.database = database[0]
@@ -62,12 +62,13 @@ class Config:
             config.setting[i] for i in range(17, 20) if int(config.value[i]) == 1
         ]
         self.star_magfield_models = [config.setting[i] for i in range(21, 23) if int(config.value[i]) == 1]
+        self.star_magfield_catalog_only = True if (int(config.value[23]) == 1) else False
         self.rho_crit = int(config.value[12])
         self.rc_dyn = True if int(config.value[6]) == 1 else False
         self.radius_expansion = True if int(config.value[15]) == 1 else False
         self.sp_type_code = int(config.value[20])
-        self.talk = True if int(config.value[23]) == 1 else False
-        self.output_path = config.value[24]
+        self.talk = True if int(config.value[24]) == 1 else False
+        self.output_path = config.value[25]
         self.output_params = ["name","ra","dec","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance",
             "planet_rotation_rate", "planet_orbital_period","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
             "star_magfield","star_rotperiod","star_luminosity","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
@@ -79,7 +80,7 @@ class Config:
         self.output_params_units = ["","hh:mm:ss", "dd:mm:ss", "MJ", "RJ", "LS", "AU","wJ","w_orb_J","", "MS", "RS", "yr", "pc", "G", "days",
             "LS", "", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "K", "T", "m.s-1", "T", "MHz", "10^14W", 
             "10^14W", "10^14W","10^10Jy", "10^10Jy", "10^10Jy", "mJy","mJy", "mJy", "MHz"]
-        log.info('Configuration parameters succesfully initialized.')
+        logger.info('Configuration parameters succesfully initialized.')
 
         
 
@@ -126,6 +127,21 @@ class Config:
                 return sp_type
         else:
             return sp_type
+
+    def log_current_run_parameters(self):
+        logger.info("Database used for this run : {}".format(self.database))
+        logger.info("Models used for planetary magnetic moment predictions : {}".format(self.magnetic_moment_models))
+        logger.info("Models used for planetary dynamo density : {}".format(self.dynamo_density_models))
+        logger.info("Critical density value used : {} g.cm-3".format(self.rho_crit))
+        logger.info("Model used for planetary radius prediction : {}".format(self.planet_radius_models))
+        logger.info("Was planetary radius expansion used ? {}".format(self.radius_expansion))
+        logger.info("Model used for stellar radius prediction : {}".format(self.star_radius_models))
+        logger.info("Tables used for planetary apparent luminosity : {}".format(self.planet_luminosity_models))
+        logger.info("Star spectral type criterion : {}".format(self.sp_type_code))
+        logger.info("Models used for stellar magnetic field prediction : {}".format(self.star_magfield_models))
+        logger.info("Were stellar magnetic_field based only on catalog ? {}".format(self.star_magfield_catalog_only))
+        logger.info("Path given to store the outputs : {}".format(self.output_path))
+
 
 
 # ============================================================= #

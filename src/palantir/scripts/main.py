@@ -58,8 +58,12 @@ dateoftheday = datetime.datetime.today().isoformat().split(':')
 dateofrun = dateoftheday[0] + 'h' + dateoftheday[1]
 maps_dir = files("palantir.scripts.input_files")
 
-palantir.setup_logging(log_filepath=config_param.output_path + dateofrun + '/',verbose=config_param.talk)
+os.system('mkdir '+config_param.output_path +'/Runs')
+os.system('mkdir '+config_param.output_path +'/Runs/'+dateofrun)
+
+palantir.setup_logging(log_filepath=config_param.output_path + '/Runs/' + dateofrun + '/',verbose=config_param.talk)
 log.info('This run was made with version {} of PALANTIR.'.format(palantir.__version__))
+config_param.log_current_run_parameters()
 
 # Criterions for target selection
 
@@ -97,6 +101,7 @@ jup = Planet(
     mass=1.0,
     radius={"models": config_param.planet_radius_models, "radius": 1.0},
     distance=5.2,
+    eccentricity=0.0487,
     worb={"star_mass": MS, "worb": 1.0},
     luminosity={
         "models": config_param.planet_luminosity_models,
@@ -121,10 +126,10 @@ selected_targets = []
 i = 1
 
 skipped_targets = open('skipped_targets.txt', "w")
-df_target=pd.DataFrame()
-df_target['0'] = pd.Series(config_param.output_params_units, index = config_param.output_params)
+#df_target=pd.DataFrame()
+#df_target['0'] = pd.Series(config_param.output_params_units, index = config_param.output_params)
 
-new_columns = []
+new_rows = [config_param.output_params_units]
 
 for target in data.itertuples():
     log.info("Planet : {}".format(target.pl_name))
@@ -170,6 +175,7 @@ for target in data.itertuples():
             mass=planet_mass,
             radius={"models": config_param.planet_radius_models, "radius": target.radius},
             distance=planet_distance,
+            eccentricity=target.eccentricity,
             worb={"star_mass": target.star_mass, "worb": np.nan},
             luminosity={
                 "models": config_param.planet_luminosity_models,
@@ -189,7 +195,7 @@ for target in data.itertuples():
             )
 
         if np.isnan(target.radius) and config_param.radius_expansion :
-            planet.radius_expansion(luminosity=star.luminosity, eccentricity=target.eccentricity)
+            planet.radius_expansion(luminosity=star.luminosity)
         try:
             planet.tidal_locking(age=star.age, star_mass=star.mass)
         except OverflowError:
@@ -203,16 +209,19 @@ for target in data.itertuples():
             continue
 
         #### Computing stellar magnetic field
-        catalog_Bstar = pd.read_csv(maps_dir / 'crossmatch_mag_exo.csv', delimiter=',')
-        crossmatch = catalog_Bstar[catalog_Bstar['Simbad_ID']==star.main_id]
-        if crossmatch.size > 0 :
-            mag_field = np.array(crossmatch['Bestim_G'])[0]
-            Teff = target.star_teff
-        else :
-            mag_field = np.nan
-            Teff = target.star_teff
+        catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog.csv', delimiter=';')
+        crossmatch = catalog_Bstar[catalog_Bstar['Planet_Name']==target.pl_name]
+
+        if (crossmatch.size < 1) or (config_param.star_magfield_catalog_only and not np.asarray(crossmatch['True_pred'])[0]):
+            log.info("KNN prediction for B* could not be done since too many parameters were missing.")
+            skipped_targets.write(target.pl_name + ': KNN prediction for B* could not be done since too many parameters were missing.\n')
+            continue
+
+        mag_field = np.asarray(crossmatch['B_G'])[0]
+        Teff = target.star_teff
 
         star.compute_effective_temperature(Teff)
+
         try :
             star.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : mag_field})
         except OverflowError :
@@ -262,7 +271,7 @@ for target in data.itertuples():
             print(magnetic_moment)
             print(target_emission)
         
-        new_columns.append(pd.Series([
+        new_rows.append([
             target_emission.name,
             target.ra,
             target.dec,
@@ -306,7 +315,7 @@ for target in data.itertuples():
             target_emission._pow_received_magnetic* 1e3/ 1e-26,
             target_emission._pow_received_spi* 1e3/ 1e-26,
             target_emission.freq_max_star/ 1e6,
-        ], index = config_param.output_params)
+        ]#, index = config_param.output_params)
         )
         i+=1
     
@@ -318,14 +327,12 @@ print(sun)
 print(sw_jup)
 
 skipped_targets.close()
-df_target = pd.concat([df_target]+new_columns, axis=1)
-df_target = df_target.transpose()
-
+#df_target = pd.concat([df_target]+new_columns, axis=1)
+#df_target = df_target.transpose()
+df_target = pd.DataFrame(new_rows,columns=config_param.output_params)
 # --------------------------------------------------------- #
 # -------- Saving input and output in one folder  --------- #
 
-os.system('mkdir '+config_param.output_path +'/Runs/'+dateofrun)
-os.system('cp parametres.csv '+config_param.output_path +'/Runs/'+dateofrun+'/parameters.csv')
 os.system('cp skipped_targets.txt '+config_param.output_path +'/Runs/'+dateofrun+'/skipped_targets.txt')
 os.system('rm skipped_targets.txt')
 
