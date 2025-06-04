@@ -23,7 +23,7 @@ Open your terminal. Go to the folder in which you want to use this algorithm. Co
 
 ```bash
 cd existing_repo
-git clone https://github.com/EmilieMauduit/PALANTIR.git
+git clone https://gitlab.obspm.fr/extract/taska-a2.git 
 ```
 
 Then you should load your desired python environment and install this package with :
