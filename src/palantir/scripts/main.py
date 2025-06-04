@@ -58,10 +58,9 @@ dateoftheday = datetime.datetime.today().isoformat().split(':')
 dateofrun = dateoftheday[0] + 'h' + dateoftheday[1]
 maps_dir = files("palantir.scripts.input_files")
 
-os.system('mkdir '+config_param.output_path +'/Runs')
-os.system('mkdir '+config_param.output_path +'/Runs/'+dateofrun)
+os.system('mkdir '+config_param.output_path +'/'+dateofrun)
 
-palantir.setup_logging(log_filepath=config_param.output_path + '/Runs/' + dateofrun + '/',verbose=config_param.talk)
+palantir.setup_logging(log_filepath=config_param.output_path + '/' + dateofrun + '/',verbose=config_param.talk)
 log.info('This run was made with version {} of PALANTIR.'.format(palantir.__version__))
 config_param.log_current_run_parameters()
 
@@ -209,17 +208,22 @@ for target in data.itertuples():
             continue
 
         #### Computing stellar magnetic field
-        catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog.csv', delimiter=';')
-        crossmatch = catalog_Bstar[catalog_Bstar['Planet_Name']==target.pl_name]
 
-        if (crossmatch.size < 1) or (config_param.star_magfield_catalog_only and not np.asarray(crossmatch['True_pred'])[0]):
-            log.info("KNN prediction for B* could not be done since too many parameters were missing.")
-            skipped_targets.write(target.pl_name + ': KNN prediction for B* could not be done since too many parameters were missing.\n')
-            continue
+        if config_param.star_magfield_catalog_only :
+            catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog.csv', delimiter=';')
+            crossmatch = catalog_Bstar[catalog_Bstar['Planet_Name']==target.pl_name]
+            if (crossmatch.size < 1) or (config_param.star_magfield_catalog_only and not np.asarray(crossmatch['True_pred'])[0]):
+                log.info("KNN prediction for B* could not be done since too many parameters were missing.")
+                skipped_targets.write(target.pl_name + ': KNN prediction for B* could not be done since too many parameters were missing.\n')
+                continue
+            mag_field = np.asarray(crossmatch['B_G'])[0]
 
-        mag_field = np.asarray(crossmatch['B_G'])[0]
+        else :
+            catalog_Bstar = pd.read_csv(maps_dir / 'crossmatch_mag_exo.csv', delimiter=',')
+            crossmatch = catalog_Bstar[catalog_Bstar['Simbad_ID']==star.main_id]
+            mag_field = np.asarray(crossmatch['Bestim_G'])[0] if (crossmatch.size>0) else np.nan
+
         Teff = target.star_teff
-
         star.compute_effective_temperature(Teff)
 
         try :
@@ -333,11 +337,11 @@ df_target = pd.DataFrame(new_rows,columns=config_param.output_params)
 # --------------------------------------------------------- #
 # -------- Saving input and output in one folder  --------- #
 
-os.system('cp skipped_targets.txt '+config_param.output_path +'/Runs/'+dateofrun+'/skipped_targets.txt')
+os.system('cp skipped_targets.txt '+config_param.output_path +'/'+dateofrun+'/skipped_targets.txt')
 os.system('rm skipped_targets.txt')
 
-data.to_csv(config_param.output_path +"/Runs/"+dateofrun+"/catalog_input.csv", sep=";", index=False)
-df_target.to_csv(config_param.output_path +"/Runs/"+dateofrun+"/main_output.csv", sep=";", index=False)
+data.to_csv(config_param.output_path +"/"+dateofrun+"/catalog_input.csv", sep=";", index=False)
+df_target.to_csv(config_param.output_path +"/"+dateofrun+"/main_output.csv", sep=";", index=False)
 
 # Sorting values by power of emission and by frequency
 

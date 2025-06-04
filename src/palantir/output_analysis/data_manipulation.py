@@ -47,7 +47,7 @@ wE = 7.27e-5  # s-1
 
 class DataManipulation:
 
-    def __init__(self, filename : str, instrument_name : str) -> None:
+    def __init__(self, data_base : pd.DataFrame, instrument_name : str) -> None:
         """
         Class to deal with output of Palantir.
         :param data_base:
@@ -65,7 +65,7 @@ class DataManipulation:
         :type intrument_sensitivity:
         np.ndarray
         """
-        self.data_base = pd.read_csv(filename, delimiter=';')
+        self.data_base = data_base
         self.instrument_name = instrument_name
         self._instrument_coordinates = None
         self._instrument_sensitivity = None
@@ -122,6 +122,13 @@ class DataManipulation:
             self._instrument_sensitivity = sensitivity_dict[self.instrument_name]
         return self._instrument_sensitivity
 
+    ##### Class methods ####
+
+    @classmethod
+    def from_file(cls, filename : str, instrument_name :  str):
+        data_base = pd.read_csv(filename, delimiter=';')
+        return cls(data_base,instrument_name)
+        
     ##### PLOTS ####
 
     def plot_frequency_flux(self,
@@ -140,7 +147,7 @@ class DataManipulation:
         
         :param instruments:
         It is possible to overplot the sensitivity of one or more radiotelescopes. In this version, 
-        available ones are : 'NenuFAR', 'LOFAR','SKA1 low','SKA2 low','GMRT','VLA','UTR-2'. One ore 
+        available ones are : 'NenuFAR', 'LOFAR low', 'LOFAR high','SKA1 low','SKA2 low','GMRT','VLA','UTR-2'. One ore 
         more can be chosen. By default none will be overplotted.
         :type instruments:
         List[str]
@@ -223,8 +230,6 @@ class DataManipulation:
         ax.set_yscale('log')
         ax.set_title(kwargs.get('title',""))
         plt.grid()
-        plt.legend(fontsize=12)
-        plt.tight_layout()
 
         figname = kwargs.get("figname","")
         if figname != "" :
@@ -235,6 +240,8 @@ class DataManipulation:
                 dpi=kwargs.get('dpi',150)
                 )
 
+        plt.legend(fontsize=12)
+        plt.tight_layout()
         plt.show()
         plt.close('all')
 
@@ -271,8 +278,12 @@ class DataManipulation:
                 marker='+', 
                 color='tab:blue')
         else :
+            zscale = kwargs.get("zscale","linear")
+            zdata = 10*np.log10(zdata) if zscale == "log" else zdata
             im = ax.scatter(xdata[~np.isnan(zdata)],ydata[~np.isnan(zdata)], 
-                c=zdata[~np.isnan(zdata)], marker='o', cmap = 'viridis')
+                c=zdata[~np.isnan(zdata)], marker='o', cmap = 'viridis',
+                vmin = kwargs.get("zmin", 0.9 * np.min(zdata[~np.isnan(zdata)])),
+                vmax = kwargs.get("zmax", 1.1 * np.max(zdata[~np.isnan(zdata)])))
             cax = inset_axes(
                     ax,
                     width='3%',
@@ -282,7 +293,7 @@ class DataManipulation:
                     bbox_transform=ax.transAxes,
                     borderpad=0,
                 )
-            cbar = plt.colorbar(im, cax=cax)
+            cbar = plt.colorbar(im, cax=cax,)
             cbar.set_label(zlabel)
         
         ax.set_xlabel(xlabel, fontsize=18)
@@ -293,9 +304,7 @@ class DataManipulation:
         ax.set_xscale(kwargs.get('xscale','linear'))
         ax.set_yscale(kwargs.get('yscale','linear'))
         ax.set_title(kwargs.get('title',""))
-        plt.grid()
-        #plt.legend(fontsize=12)
-        #plt.tight_layout()
+        ax.grid()
 
         figname = kwargs.get("figname","")
         if figname != "" :
@@ -312,25 +321,35 @@ class DataManipulation:
     ##### TARGET SELECTION ####
 
     def target_selection(self,
+        fc_min_MHz : float = None,
+        flux_min_mJy : float = None,
         filename : str =  None):
 
         """ This method allows to select the targets with a maximum cyclotron frequency and a maximum estimated flux that are 
         above the sensitivity of the considered instrument. To be added : possibility to also select the one observable with 
         the telescope using its coordinates and the RA/DEC coordinates of the targets."""
 
-        sensitivities = self.instrument_sensitivity()
+        data_base_filtered = self.data_base.iloc[1:].copy()
+        if (fc_min_MHz is None) and (flux_min_mJy is None) :
+            sensitivities = self.instrument_sensitivity
 
-        fc_min = np.min(sensitivities[0,:])
-        flux_min = np.min(sensitivities[1,:])
+            fc_min_MHz = np.min(sensitivities[0,:])
+            flux_min_mJy = np.min(sensitivities[1,:])
 
-        mask = ((self.data_base['freq_max_planet'] >= fc_min) & (self.data_base['pow_received_magnetic'] >= flux_min)) | ((self.data_base['freq_max_star'] >= fc_min) & (self.data_base['pow_received_spi'] >= flux_min))
+        elif (fc_min_MHz is not None) and (flux_min_mJy is None) :
+            flux_min_mJy = 0.
+        
+        elif (fc_min_MHz is None) and (flux_min_mJy is not None) :
+            fc_min_MHz = 0.
 
-        df_select = self.data_base[mask]
+        mask_MS = (data_base_filtered['freq_max_planet'].astype(float) >= fc_min_MHz) & (data_base_filtered['pow_received_magnetic'].astype(float) >= flux_min_mJy)
+        mask_SPI = (data_base_filtered['freq_max_star'].astype(float) >= fc_min_MHz) & (data_base_filtered['pow_received_spi'].astype(float) >= flux_min_mJy)
+        df_select = data_base_filtered[mask_MS | mask_SPI]
 
         if filename is not None :
             df_select.to_csv(filename, sep=';')
 
-        return df_select
+        return DataManipulation(df_select, instrument_name=self.instrument_name)
 
 
 
