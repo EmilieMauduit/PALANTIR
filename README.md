@@ -289,6 +289,10 @@ Any issue encountered while using this software can be raised on the Issue page 
 
 Any suggestion on a missing feature, a way to improve the code will be welcomed. Please do not hesitate to reach out.
 
+# Cite this work
+
+[![DOI](https://zenodo.org/badge/480817410.svg)](https://doi.org/10.5281/zenodo.15599637)
+
 # Authors and acknowledgment
 
 This work has made use of the Extrasolar Planet Encyclopaedia (exoplanet.eu) maintained by [J. Schneider et al](https://doi.org/10.1051/0004-6361/201116713). Philippe Zarka acknowledges funding from the ERC under the European Union's Horizon 2020 research and innovation programme (grant agreement no. 101020459 - Exoradio). Emilie Mauduit acknowledges the precious help of A. Loh for Python usage. This work was supported by the Programme National de Planétologie (PNP) of CNRS/INSU co-funded by CNES and by the Programme National de Physique Stellaire (PNPS) of CNRS/INSU co-funded by CEA and CNES.
