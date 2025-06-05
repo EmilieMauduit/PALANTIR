@@ -16,6 +16,6 @@ __author__ = "Emilie Mauduit"
 __copyright__ = "Copyright 2023, palantir"
 __credits__ = ["Emilie Mauduit", "Jean-Mathias Griessmeier"]
 __license__ = "MIT"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __maintainer__ = "Emilie Mauduit"
 __email__ = "emilie.mauduit@obspm.fr"

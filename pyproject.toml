@@ -1,6 +1,6 @@
 [project]
 name = "palantir"
-version = "0.1.0"
+version = "0.1.1"
 description = "PALANTIR : Prediction Algorithm for star-pLANeT Interactions in Radio. This software allows to predict the radio flux and frequency of potential radio emissions from exoplanetary systems. "
 readme = "README.md"
 requires-python = ">=3.8"
