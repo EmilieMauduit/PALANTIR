@@ -20,7 +20,7 @@ logger = logging.getLogger('palantir.prediction_tools.stellar_wind')
 
 
 class StellarWind:
-    def __init__(self, ne: float, ve: float, Tcor: float, Bsw: dict):
+    def __init__(self, ne: float, v : float, ve: float, Tcor: float, Bsw: dict):
         """Creates a stellar wind object.
 
         :param ne:
@@ -42,10 +42,13 @@ class StellarWind:
         """
 
         self.density = ne
+        self.velocity_sw = v
         self.effective_velocity = ve
         self.corona_temperature = Tcor
+        self.distance_alfven_point = Bsw
         self.mag_field = Bsw
         self._alfven_velocity = None
+        
     
     def __str__(self):
         return ("Electron density : {} m-3 \n".format(self.density)
@@ -59,32 +62,44 @@ class StellarWind:
     # ------------------------ Methods ------------------------ #
 
     @property
+    def distance_alfven_point(self):
+        return self._distance_alfven_point
+
+    @distance_alfven_point.setter
+    def distance_alfven_point(self, value:dict):
+        """Finds the position of the Alfven point where Bperp^2/2mu0 = ne*mp*v^2"""
+        results = optimize.minimize(
+                        self._alfven_point_equation,
+                        value['planet'].stardist/2, 
+                        args=(value['star'], value['planet']),
+                        method='Nelder-Mead',                         # Optimization method
+                        tol=1e-3                                      # Tolerance for convergence
+                        )
+        self._distance_alfven_point = results.x[0]
+
+    @property
     def mag_field(self):
         return self._mag_field
 
     @mag_field.setter
     def mag_field(self, value: dict):
         if ("planet" or "star" or "vsw") not in value:
-            logger.error("KeyError : Planet or Star or SW velocity not in value.")
-            raise KeyError("Planet or Star or SW velocity not in value.")
-        G = 6.6725985e-11  # N.m^2/kg^2
-        dua = 1.49597870700e11  # m
-        vorb = sqrt(
-            G * value["star"].unnormalize_mass() / (value["planet"].stardist * dua)
-        )
-        Bimf_r, Bimf_p = self._calc_Bimf(
-            stardist=value["planet"].stardist,
-            R_star= value["star"].unnormalize_radius(),
-            vsw = value["vsw"],
-            rotperiod = value["star"].rotperiod, 
-            magfield_surf = value["star"].magfield)
-        alpha = atan(Bimf_p / Bimf_r)
-        beta = atan(vorb / value["vsw"])
+            logger.error("KeyError : Planet or Star or Vsw not in value.")
+            raise KeyError("Planet or Star or Vsw not in value.")
+        
+        Bperp = self._calc_Bperp(
+            d=value['planet'].stardist,
+            star=value['star'],
+            planet=value['planet'],
+            vsw = value['vsw'],
+            d_alfven_point= self._distance_alfven_point
+            )
+
         #Bimf_r *= Psun / value["star"].rotperiod
         #Bimf_p *= Psun / value["star"].rotperiod
         #print("B_imf,r = ", Bimf_r, " T, B_imf,phi = ", Bimf_p, " T")
         #print("alpha= ",alpha, " , beta= ", beta)
-        self._mag_field = sqrt(Bimf_r**2 + Bimf_p**2) * abs(sin(alpha - beta))
+        self._mag_field = Bperp
 
     @property
     def alfven_velocity(self):
@@ -108,9 +123,9 @@ class StellarWind:
             Planet
         """
 
-        v, veff, ne, T = cls._Parker(star=star, planet=planet)
+        v, veff, ne, T = cls._Parker(star=star, distance=planet.stardist)
 
-        return cls(ne, veff, T, Bsw={"planet": planet, "star": star, "vsw": v})
+        return cls(ne, v, veff, T, Bsw={"planet": planet, "star": star, "vsw" : v})
 
     # --------------------------------------------------------- #
     # -------------------- Static methods --------------------- #
@@ -142,27 +157,81 @@ class StellarWind:
         return nsun
 
     @staticmethod
-    def _calc_Bimf(
-        stardist: float, 
-        R_star : float, 
-        vsw : float, 
-        rotperiod : float, 
-        magfield_surf : float = None
+    def _alfven_point_equation(
+        d_alfven_point : float,
+        star : Star,
+        planet : Planet,
+        ):
+
+        mp = 1.660540210e-27  # kg
+        mu0 = 4*np.pi * 1e-7
+        v, veff, ne, T = StellarWind._Parker(star=star, distance=d_alfven_point)
+
+        Bperp = StellarWind._calc_Bperp(
+            d = d_alfven_point, 
+            star = star,
+            planet = planet,
+            vsw = v,
+            d_alfven_point=planet.stardist)
+        
+        res1 = (Bperp**2) / (2*mu0)
+
+        res2 = ne * (v**2) * mp
+
+        return (res1 - res2)**2
+
+    @staticmethod
+    def _calc_B_radial(
+        d : float,
+        d_alfven_point : float,
+        R_star : float,
+        magfield_surf : float
+        ):
+
+        dua = 1.49597870700e11  # m
+        if d <= d_alfven_point :
+            Br = magfield_surf * pow(R_star/(d * dua), 3)
+        else :
+            Br_ini = magfield_surf * pow(R_star/(d_alfven_point * dua), 3)
+            Br = Br_ini * pow(R_star/(d  * dua), 2)
+        
+        return Br
+
+    @staticmethod
+    def _calc_Bperp(
+        d : float,
+        star : Star,
+        planet : Planet, 
+        vsw : float,
+        d_alfven_point : float,
         ):
         """ Compute the radial and angular component of the interplanetary magnetic field at the planet."""
         Psun = 25.5  # days
         dua = 1.49597870700e11  # m
-        omega_star = 2 * np.pi / (rotperiod * 24 * 3600)
-        if magfield_surf is None :
-            Br0 = 2.6e-9 * Psun / rotperiod # T
-            Bp0 = 2.4e-9 * Psun / rotperiod # T
-            Br = Br0 * pow(stardist, -2)
-            Bp = Bp0 * pow(stardist, -1)
+        omega_star = 2 * np.pi / (star.rotperiod * 24 * 3600)
+        G = 6.6725985e-11  # N.m^2/kg^2
+        vorb = sqrt(
+            G * star.unnormalize_mass() / (planet.stardist * dua)
+        )
+
+        if np.isnan(star.magfield) :
+            Br0 = 2.6e-9 * Psun / star.rotperiod # T
+            Bp0 = 2.4e-9 * Psun / star.rotperiod # T
+            Br = Br0 * pow(d, -2)
+            Bp = Bp0 * pow(d, -1)
         else :
-            Br = magfield_surf * pow(R_star/(stardist *dua), 2)
-            Bp = magfield_surf * (R_star ** 2) * omega_star / (stardist * dua * vsw)
-        
-        return (Br, Bp)
+            Br = StellarWind._calc_B_radial( 
+                d = d, 
+                d_alfven_point = d_alfven_point,
+                R_star = star.unnormalize_radius(),
+                magfield_surf = star.magfield)
+            Bp = Br * omega_star * d * dua / vsw
+
+        alpha = atan(Bp / Br)
+        beta = atan(vorb / vsw)
+
+        Bperp = sqrt(Br**2 + Bp**2) * abs(sin(alpha - beta))
+        return Bperp
 
     @staticmethod
     def _mass_lossrate(t: float, R: float) -> float:
@@ -337,12 +406,12 @@ class StellarWind:
         return T
 
     @staticmethod
-    def _Parker(star: Star, planet: Planet, T: float = None):
+    def _Parker(star: Star, distance: float, T: float = None):
         """Compute the velocity and the density of the SW using the Parker model.
-        :param planet:
-            The planet studied
-        :type planet:
-            Planet
+        :param distance:
+            The distance from the star where the parameters should be evaluated in astronomical units (AU).
+        :type distance:
+            float
         :param star:
             The associated star
         :type star:
@@ -353,7 +422,7 @@ class StellarWind:
         mp = 1.660540210e-27  # kg
         dua = 1.49597870700e11  # m
         G = 6.6725985e-11  # N.m^2/kg^2
-        d = planet.stardist
+        d = distance #AU
         t = star.age  # yr
         if T is None:
             T = StellarWind._calc_temperature(star.unnormalize_mass(), t)
@@ -378,7 +447,7 @@ class StellarWind:
                 args=(d * dua, rc, vc),
                 maxiter=50,
             )
-            print("planet dist > 1UA")
+            #logger.debug("Warning : Planet dist > 1 AU")
         else:
             d_temp = 1.0
             v_temp_ini = optimize.newton(

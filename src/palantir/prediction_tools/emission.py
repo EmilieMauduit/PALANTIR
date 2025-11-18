@@ -24,7 +24,9 @@ class Emission:
         mag_field: dict,
         pow_emission: dict,
         pow_received: dict,
-        fmax_star: dict,
+        fcmax_star: dict,
+        fp_planet : dict,
+        fp_star : dict,
     ):
         """Creates a Target object.
         :param name:
@@ -43,7 +45,7 @@ class Emission:
             Dictionnary with the relevant Star object to compute both kinetic and magnetic power of the emission at Earth.
         :type pow_received:
             dict
-        :param fmax_star:
+        :param fcmax_star:
             Maximum frequency of the emission at the star, in Hz.
         :type fmax_star:
             float
@@ -51,8 +53,10 @@ class Emission:
 
         self.name = name
         self.mag_field_planet = mag_field
-        self._freq_max_planet = None
-        self.freq_max_star = fmax_star
+        self._freq_c_max_planet = None
+        self.freq_c_max_star = fcmax_star
+        self.freq_p_planet = fp_planet
+        self.freq_p_star = fp_star
         self.pow_emission_kinetic = pow_emission
         self.pow_emission_magnetic = pow_emission
         self.pow_emission_spi = pow_emission
@@ -64,8 +68,10 @@ class Emission:
         self.pow_received_spi = pow_received
 
     def __str__(self):
-        return("Maximum frequency emission at the planet : fcp_max = {} MHz \n".format(self.freq_max_planet * 1e-6)
-            + "Maximum frequency emission at the star : fc*_max = {} MHz \n".format(self.freq_max_star * 1e-6)
+        return("Maximum frequency emission at the planet : fcp_max = {} MHz \n".format(self.freq_c_max_planet * 1e-6)
+            + "Maximum frequency emission at the star : fc*_max = {} MHz \n".format(self.freq_c_max_star * 1e-6)
+            + "Plasma frequency emission at the planet : fpp = {} MHz \n".format(self.freq_p_planet * 1e-6)
+            + "Plasma frequency emission at the star : fp* = {} MHz \n".format(self.freq_p_star * 1e-6)
             + "Maximum magnetic field at the planet : Bpla = {} T\n".format(self.mag_field_planet)
             + "Kinetic power of the emission at the system : Pkin_em = {} .10^14 W\n".format(self.pow_emission_kinetic / 1e14)
             + "Magnetic power of the emission at the system : Pmag_em = {} .10^14 W\n".format(self.pow_emission_magnetic / 1e14)
@@ -104,25 +110,53 @@ class Emission:
     #=============== Frequencies ===============#
 
     @property
-    def freq_max_planet(self):
-        if self._freq_max_planet is None:
+    def freq_c_max_planet(self):
+        if self._freq_c_max_planet is None:
             me = 9.1093897e-31  # kg
             e = 1.60217733e-19  # C
-            self._freq_max_planet = e * self.mag_field_planet / (2 * np.pi * me)
-        return self._freq_max_planet
+            self._freq_c_max_planet = e * self.mag_field_planet / (2 * np.pi * me)
+        return self._freq_c_max_planet
 
     @property
-    def freq_max_star(self):
-        return self._freq_max_star
+    def freq_c_max_star(self):
+        return self._freq_c_max_star
 
-    @freq_max_star.setter
-    def freq_max_star(self, value: dict):
+    @freq_c_max_star.setter
+    def freq_c_max_star(self, value: dict):
         if "star" not in value:
             log.error('KeyError : star not in value')
             raise KeyError("star not in value")
         me = 9.1093897e-31  # kg
         e = 1.60217733e-19  # C
-        self._freq_max_star = e * value["star"].magfield / (2 * np.pi * me)
+        self._freq_c_max_star = e * value["star"].magfield / (2 * np.pi * me)
+
+    @property
+    def freq_p_planet(self):
+        return self._freq_p_planet
+
+    @freq_p_planet.setter
+    def freq_p_planet(self, value:dict):
+        if "ne" not in value :
+            log.error('KeyError : ne not in value')
+            raise KeyError("ne not in value")
+        me = 9.1093897e-31  # kg
+        q = 1.60217733e-19  # C
+        epsilon0 = 8.85e-12
+        self._freq_p_planet = np.sqrt((q**2) * value["ne"] /( epsilon0 * me))/ (2 * np.pi)
+
+    @property
+    def freq_p_star(self):
+        return self._freq_p_star
+
+    @freq_p_star.setter
+    def freq_p_star(self, value:dict):
+        if "ne" not in value :
+            log.error('KeyError : ne not in value')
+            raise KeyError("ne not in value")
+        me = 9.1093897e-31  # kg
+        q = 1.60217733e-19  # C
+        epsilon0 = 8.85e-12
+        self._freq_p_star = np.sqrt((q**2) * value["ne"] /( epsilon0 * me))/ (2 * np.pi)
 
     #=============== Powers emitted ===============#
 
@@ -202,7 +236,7 @@ class Emission:
                 "planet or star or magnetic_moment or stellar_wind or sw_jupiter not in value"
             )
 
-        if value["stellar_wind"].alfven_velocity < value["stellar_wind"].effective_velocity :
+        if value["stellar_wind"].alfven_velocity < value["stellar_wind"].velocity_sw :
             self._pow_emission_spi = np.nan
         else :
             if not np.isnan(self._mag_field_planet) :
@@ -224,7 +258,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_kinetic_au = self._pow_emission_kinetic / (
-                    1.6 * 0.25 * self.freq_max_planet * (dua**2)
+                    1.6 * 0.25 * self.freq_c_max_planet * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_kinetic_au = np.nan
@@ -236,7 +270,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_magnetic_au = self._pow_emission_magnetic / (
-                    1.6 * 0.25 * self.freq_max_planet * (dua**2)
+                    1.6 * 0.25 * self.freq_c_max_planet * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_magnetic_au = np.nan
@@ -248,7 +282,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_spi_au = self._pow_emission_spi / (
-                    0.16 * 0.25 * self.freq_max_star * (dua**2)
+                    0.16 * 0.25 * self.freq_c_max_star * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_spi_au = np.nan
@@ -269,7 +303,7 @@ class Emission:
         pc = 3.08568e16  # m
         try : 
             self._pow_received_kinetic = self._pow_emission_kinetic / (
-                1.6 * 0.25 * self.freq_max_planet * pow(value["star"].obs_dist * pc, 2)
+                1.6 * 0.25 * self.freq_c_max_planet * pow(value["star"].obs_dist * pc, 2)
             )
         except (ZeroDivisionError):
             self._pow_received_kinetic = np.nan
@@ -287,7 +321,7 @@ class Emission:
         pc = 3.08568e16  # m
         try :
             self._pow_received_magnetic = self._pow_emission_magnetic / (
-                1.6 * 0.25 * self.freq_max_planet * pow(value["star"].obs_dist * pc, 2)
+                1.6 * 0.25 * self.freq_c_max_planet * pow(value["star"].obs_dist * pc, 2)
             )
         except (ZeroDivisionError):
             self._pow_received_magnetic = np.nan
@@ -305,7 +339,7 @@ class Emission:
         pc = 3.08568e16  # m
         try :
             self._pow_received_spi = self._pow_emission_spi / (
-                0.16 * 0.25 * self.freq_max_star * pow(value["star"].obs_dist * pc, 2)
+                0.16 * 0.25 * self.freq_c_max_star * pow(value["star"].obs_dist * pc, 2)
             )
         except (ZeroDivisionError):
             self._pow_received_spi = np.nan

@@ -157,7 +157,7 @@ class MagneticMoment:
         mp = 1.660540210e-27  # kg
         res1 = (mp * stellar_wind.density * pow(stellar_wind.effective_velocity, 2)) + (
             2 * stellar_wind.density * kb * stellar_wind.corona_temperature
-        )
+        ) + ((stellar_wind.mag_field **2) / (2*4*np.pi*1e-7))
         self.standoff_dist = pow(
             (np.pi * 4e-7 * (1.16**2) * (self.unormalize_magnetic_moment(other) ** 2))
             / (res1 * 8 * (np.pi**2)),

@@ -20,5 +20,6 @@ src/palantir/__pycache__/
 src/.DS_Store
 src/palantir/.DS_Store
 src/palantir/palantir.egg-info
+src/palantir.egg-info
 build
 notebooks

@@ -45,6 +45,7 @@ ME = 5.97237e24  # kg
 RE = 6371.0e3  # m
 wE = 7.27e-5  # s-1
 
+dua = 1.49597870700e11  # m
 # rc = 0.85 * RJ
 # rhoc = 1800  # kg/m3
 
@@ -115,9 +116,9 @@ sun.compute_magnetic_field(value= {'model': config_param.star_magfield_models, '
 dyn_region_jup = DynamoRegion.from_planet(planet=jup, rhocrit=config_param.rho_crit)
 dyn_region_jup.magnetic_field(planet=jup,rc_dyn=config_param.rc_dyn, jup=True)
 mag_moment_jup = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.56e27, Rs=1.0)
-vjup, vejup, nejup, Tjup = StellarWind._Parker(star=sun, planet=jup, T=0.81e6)
+vjup, vejup, nejup, Tjup = StellarWind._Parker(star=sun, distance=jup.stardist, T=0.81e6)
 sw_jup = StellarWind(
-    ne=nejup, ve=vejup, Tcor=Tjup, Bsw={"planet": jup, "star": sun, "vsw": vjup}
+    ne=nejup, v = vjup, ve=vejup, Tcor=Tjup, Bsw={"planet": jup, "star": sun, "vsw":vjup}
 )
 
 selected_targets = []
@@ -264,7 +265,9 @@ for target in data.itertuples():
                 "sw_jupiter": sw_jup,
             },
             pow_received={"star": star},
-            fmax_star={"star": star},
+            fcmax_star={"star": star},
+            fp_planet={"ne" : stellar_wind.density},
+            fp_star={"ne" : stellar_wind.density * ((planet.stardist * dua / star.unnormalize_radius()) ** 2)}
         )
         
         if config_param.talk :
@@ -283,6 +286,7 @@ for target in data.itertuples():
             planet.radius,
             planet.luminosity,
             planet.stardist,
+            target.semi_major_axis,
             planet.rotrate,
             planet.orbitperiod,
             star.main_id,
@@ -306,9 +310,11 @@ for target in data.itertuples():
             stellar_wind.effective_velocity,
             stellar_wind.corona_temperature,
             stellar_wind.mag_field,
+            stellar_wind.distance_alfven_point,
             stellar_wind.alfven_velocity,
             target_emission._mag_field_planet,
-            target_emission._freq_max_planet / 1e6,
+            target_emission._freq_c_max_planet / 1e6,
+            target_emission._freq_p_planet / 1e6,
             target_emission._pow_emission_kinetic / 1e14,
             target_emission._pow_emission_magnetic / 1e14,
             target_emission._pow_emission_spi / 1e14,
@@ -318,7 +324,8 @@ for target in data.itertuples():
             target_emission._pow_received_kinetic* 1e3/ 1e-26,
             target_emission._pow_received_magnetic* 1e3/ 1e-26,
             target_emission._pow_received_spi* 1e3/ 1e-26,
-            target_emission.freq_max_star/ 1e6,
+            target_emission.freq_c_max_star/ 1e6,
+            target_emission.freq_p_star/ 1e6,
         ]#, index = config_param.output_params)
         )
         i+=1

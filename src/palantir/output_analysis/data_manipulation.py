@@ -9,6 +9,7 @@ Created on Fri Nov  15 10:09:06 2024
 # --------------------------------------------------------- #
 # ------------------------ Imports ------------------------ #
 
+from cgi import test
 import pandas as pd
 import numpy as np
 from nenupy.instru.interferometer import ObservingMode
@@ -134,23 +135,30 @@ class DataManipulation:
     def plot_frequency_flux(self,
             interaction : str = 'MS',
             instruments : List[str] = None,
+            test_alfven_velocity : bool = False,
+            test_escaping : bool = False,
             **kwargs) :
         """ 
         This method allows to produce plots of predicted flux vs maximum cyclotron frequency. 
         
         :param interaction:
-        As different two types of interactions are considered, it is possible to plot the results 
-        concerning Star-Planet Interactions ('SPI') or Magnetosphere-Stellar wind interactions ('MS').
-        Default is 'MS'.
+            As different two types of interactions are considered, it is possible to plot the results 
+            concerning Star-Planet Interactions ('SPI') or Magnetosphere-Stellar wind interactions ('MS').
+            Default is 'MS'.
         :type interaction:
-        str
-        
+            str
+
         :param instruments:
-        It is possible to overplot the sensitivity of one or more radiotelescopes. In this version, 
-        available ones are : 'NenuFAR', 'LOFAR low', 'LOFAR high','SKA1 low','SKA2 low','GMRT','VLA','UTR-2'. One ore 
-        more can be chosen. By default none will be overplotted.
+            It is possible to overplot the sensitivity of one or more radiotelescopes. In this version, 
+            available ones are : 'NenuFAR', 'LOFAR low', 'LOFAR high','SKA1 low','SKA2 low','GMRT','VLA','UTR-2'. One ore 
+            more can be chosen. By default none will be overplotted.
         :type instruments:
-        List[str]
+            List[str]
+
+        :param test_alfven_velocity:
+            A parameter to distinguish, or not, points where the velocity of the emission is superior or inferior to the alfven velocity.
+        :type test_alfven_velocity:
+            bool
         """
 
         if (instruments is not None) :
@@ -179,44 +187,77 @@ class DataManipulation:
                                 'UTR-2' : np.array([[10,30],[1e1,1e1]])}
 
                 color_dict = {'NenuFAR' : ['tab:red','solid'],
-                                'LOFAR low' : ['goldenrod','solid'],
-                                'LOFAR high' : ['goldenrod','solid'],
-                                'SKA1 low' : ['purple','solid'],
-                                'SKA2 low' : ['purple', 'dashed'],
-                                'GMRT' : ['y','solid'],
-                                'VLA' : ['darkblue','solid'],
-                                'UTR-2' : ['forestgreen','solid']}
+                                'LOFAR low' : ['tab:green','dashed'],
+                                'LOFAR high' : ['tab:green','solid'],
+                                'SKA1 low' : ['tab:orange','solid'],
+                                'SKA2 low' : ['tab:orange', 'dashed'],
+                                'GMRT' : ['tab:red','solid'],
+                                'VLA' : ['tab:blue','solid'],
+                                'UTR-2' : ['tab:blue','dashed']}
             else :
                 raise ValueError("Invalid instrument name. Available instruments are : 'NenuFAR', 'LOFAR','SKA1 low','SKA2 low','GMRT','VLA','UTR-2'.")
 
         if interaction == 'MS' :
             flux_to_plot = np.array(self.data_base['pow_received_magnetic'][1:],dtype='float')
-            frequencies_to_plot = np.array(self.data_base['freq_max_planet'][1:],dtype='float')
+            frequencies_to_plot = np.array(self.data_base['fc_max_planet'][1:],dtype='float')
             xlabel = '$f_{c,p}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{MS}$  [mJy]'
+
+            if test_escaping :
+                fp_planet = np.array(self.data_base['fp_planet'][1:][~np.isnan(flux_to_plot)],dtype='float')
+                fc_planet = frequencies_to_plot[~np.isnan(flux_to_plot)]
+
+                escaping = fc_planet > 10*fp_planet
+                not_escaping = ~escaping
 
         elif interaction == 'SPI' :
             flux_to_plot = np.array(self.data_base['pow_received_spi'][1:],dtype='float')
-            frequencies_to_plot = np.array(self.data_base['freq_max_star'][1:],dtype='float')
+            frequencies_to_plot = np.array(self.data_base['fc_max_star'][1:],dtype='float')
             xlabel = '$f_{c,*}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{SPI}$  [mJy]'
+
+            if test_escaping :
+                fp_star = np.array(self.data_base['fp_star'][1:][~np.isnan(flux_to_plot)],dtype='float')
+                fc_star = frequencies_to_plot[~np.isnan(flux_to_plot)]
+
+                escaping = fc_star > 10*fp_star
+                not_escaping = ~escaping
         else :
             raise ValueError("Invalid interaction name. Available names are 'MS' or 'SPI'.")
 
-        xmin = kwargs.get('xmin',0.9*np.min(frequencies_to_plot[~np.isnan(flux_to_plot)])) ; xmax = kwargs.get('xmax',1.1*np.max(frequencies_to_plot[~np.isnan(flux_to_plot)]))
-        ymin = kwargs.get('ymin',0.9*np.min(flux_to_plot[~np.isnan(flux_to_plot)])) ; ymax = kwargs.get('ymax',1.1*np.max(flux_to_plot[~np.isnan(flux_to_plot)]))
+        if test_alfven_velocity :
+            alfven_velocity = np.array(self.data_base['alfven_velocity'][1:][~np.isnan(flux_to_plot)],dtype='float')
+            sw_velocity = np.array(self.data_base['sw_velocity'][1:][~np.isnan(flux_to_plot)],dtype='float')
+
+            sub_alfvenic = alfven_velocity > sw_velocity
+            super_alfvenic = ~sub_alfvenic
+
+        frequencies_to_plot = frequencies_to_plot[~np.isnan(flux_to_plot)]
+        flux_to_plot = flux_to_plot[~np.isnan(flux_to_plot)]
+
+        xmin = kwargs.get('xmin',0.8*np.min(frequencies_to_plot)) ; xmax = kwargs.get('xmax',1.2*np.max(frequencies_to_plot))
+        ymin = kwargs.get('ymin',0.8*np.min(flux_to_plot)) ; ymax = kwargs.get('ymax',1.2*np.max(flux_to_plot))
 
         fig = plt.figure(figsize=(10,7))
         ax = fig.add_subplot(111)
 
-        ax.scatter(frequencies_to_plot[~np.isnan(flux_to_plot)],flux_to_plot[~np.isnan(flux_to_plot)], 
-            marker='+', 
-            color='tab:blue')
-        
+        if test_alfven_velocity :
+            ax.scatter(frequencies_to_plot[sub_alfvenic], flux_to_plot[sub_alfvenic], marker = 'v', color='tab:purple', label='Sub-alfvenic velocity', alpha=0.6)
+            ax.scatter(frequencies_to_plot[super_alfvenic], flux_to_plot[super_alfvenic], marker ='^', color='tab:orange', label='Super-alfvenic velocity', alpha=0.6)
+
+        elif test_escaping:
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = 'v', color='tab:purple', label="$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='^', color='tab:orange', label="$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
+        else :
+            ax.scatter(frequencies_to_plot,flux_to_plot, 
+                marker='^', 
+                color='gray',
+                alpha=0.8)
+            
         if instruments is not None :
             for name,sensitivity in sensitivity_dict.items():
                 if name == 'GMRT':
                     ax.scatter(sensitivity[0,:],sensitivity[1,:], color=color_dict[name][0], label = name)
                 else :
-                    ax.plot(sensitivity[0,:],sensitivity[1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=2, label = name)
+                    ax.plot(sensitivity[0,:],sensitivity[1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name)
             
         ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='ionospheric cut-off')
         rect = plt.Rectangle((xmin,ymin),10-xmin,ymax-ymin,facecolor='black',alpha=0.1)
@@ -230,6 +271,8 @@ class DataManipulation:
         ax.set_yscale('log')
         ax.set_title(kwargs.get('title',""))
         plt.grid()
+        plt.legend(fontsize=12, ncol = 3)
+        plt.tight_layout()
 
         figname = kwargs.get("figname","")
         if figname != "" :
@@ -239,9 +282,7 @@ class DataManipulation:
                 bbox_inches='tight', 
                 dpi=kwargs.get('dpi',150)
                 )
-
-        plt.legend(fontsize=12)
-        plt.tight_layout()
+        
         plt.show()
         plt.close('all')
 
@@ -249,6 +290,7 @@ class DataManipulation:
         x : str,
         y : str,
         z : str = None,
+        test_alfven_velocity : bool = False,
         **kwargs
         ):
 
@@ -263,6 +305,15 @@ class DataManipulation:
         ydata = np.array(self.data_base[y][1:],dtype='float')
         zdata = np.array(self.data_base[z][1:],dtype='float') if z is not None else None
 
+        ydata = ydata * 1e14 if y == 'pow_emission_spi' else ydata
+
+        if test_alfven_velocity :
+            alfven_velocity = np.array(self.data_base['alfven_velocity'][1:][~np.isnan(ydata)], dtype='float')
+            sw_velocity = np.array(self.data_base['sw_velocity'][1:][~np.isnan(ydata)], dtype='float')
+
+            sub_alfvenic = alfven_velocity > sw_velocity
+            super_alfvenic = ~sub_alfvenic
+
         xmin = kwargs.get('xmin',0.9*np.nanmin(xdata)) ; xmax = kwargs.get('xmax',1.1*np.nanmax(xdata))
         ymin = kwargs.get('ymin',0.9*np.nanmin(ydata)) ; ymax = kwargs.get('ymax',1.1*np.nanmax(ydata))
 
@@ -274,9 +325,15 @@ class DataManipulation:
         ax = fig.add_subplot(111)
 
         if z is None :
-            ax.scatter(xdata[~np.isnan(ydata)],ydata[~np.isnan(ydata)], 
-                marker='+', 
-                color='tab:blue')
+            xdata = xdata[~np.isnan(ydata)] ; ydata = ydata[~np.isnan(ydata)]
+            if test_alfven_velocity :
+                ax.scatter(xdata[sub_alfvenic],ydata[sub_alfvenic], marker='v', color='tab:purple', label='Sub-alfvenic velocity',alpha=0.8)
+                ax.scatter(xdata[super_alfvenic],ydata[super_alfvenic], marker='^', color='tab:orange', label='Super-alfvenic velocity',alpha=0.8)
+                ax.legend(fontsize=12)
+            else :
+                ax.scatter(xdata[~np.isnan(ydata)],ydata[~np.isnan(ydata)], 
+                    marker='+', 
+                    color='tab:blue')
         else :
             zscale = kwargs.get("zscale","linear")
             zdata = 10*np.log10(zdata) if zscale == "log" else zdata
