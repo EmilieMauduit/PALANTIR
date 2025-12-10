@@ -84,6 +84,7 @@ dict_data = { 'nasa_data' : 'exoplanet_catalog_NASA.csv',
 data =pd.read_csv(maps_dir / dict_data[config_param.database])
 data = config_param.param_names(data=data)
 
+
 # --------------------------------------------------------- #
 # ------------------------ Main --------------------------- #
 # --------------------------------------------------------- #
@@ -205,7 +206,7 @@ for target in data.itertuples():
         
         if star.sp_type_code > config_param.sp_type_code :
             log.info("Star spectral type is not consistent with configuration parameters.")
-            skipped_targets.write(target.pl_name + ': star spectral type is not consistent with configuration parameters.\n')
+            skipped_targets.write(target.pl_name + ': star spectral type is not consistent with configuration parameters {}.\n'.format(target.star_sp_type))
             continue
 
         #### Computing stellar magnetic field
@@ -253,6 +254,10 @@ for target in data.itertuples():
         if magnetic_moment.normalize_standoff_dist(planet) < 1:
             magnetic_moment.standoff_dist = planet.unnormalize_radius()
             log.info("Magnetosphere radius lower than 1.")
+
+        if not config_param.rc_dyn :
+            dyn_region.mag_field_equatorial = magnetic_moment.mag_moment * mag_moment_jup.mag_moment/np.power(planet.unnormalize_radius(),3)
+            dyn_region.mag_field_dynamo = dyn_region.mag_field_equatorial * 2 * np.sqrt(2)
             
         target_emission = Emission(
             name=planet.name,
@@ -264,7 +269,7 @@ for target in data.itertuples():
                 "stellar_wind": stellar_wind,
                 "sw_jupiter": sw_jup,
             },
-            pow_received={"star": star},
+            flux_received={"star": star, "stellar_wind" : stellar_wind},
             fcmax_star={"star": star},
             fp_planet={"ne" : stellar_wind.density},
             fp_star={"ne" : stellar_wind.density * ((planet.stardist * dua / star.unnormalize_radius()) ** 2)}
@@ -308,6 +313,7 @@ for target in data.itertuples():
             magnetic_moment.normalize_standoff_dist(planet=planet),
             stellar_wind.density,
             stellar_wind.effective_velocity,
+            stellar_wind.velocity_sw,
             stellar_wind.corona_temperature,
             stellar_wind.mag_field,
             stellar_wind.distance_alfven_point,
@@ -321,9 +327,9 @@ for target in data.itertuples():
             target_emission.flux_kinetic_au / 1e-26 / 1e10,
             target_emission.flux_magnetic_au / 1e-26 / 1e10,
             target_emission.flux_spi_au / 1e-26 / 1e10,
-            target_emission._pow_received_kinetic* 1e3/ 1e-26,
-            target_emission._pow_received_magnetic* 1e3/ 1e-26,
-            target_emission._pow_received_spi* 1e3/ 1e-26,
+            target_emission._flux_received_kinetic* 1e3/ 1e-26,
+            target_emission._flux_received_magnetic* 1e3/ 1e-26,
+            target_emission._flux_received_spi* 1e3/ 1e-26,
             target_emission.freq_c_max_star/ 1e6,
             target_emission.freq_p_star/ 1e6,
         ]#, index = config_param.output_params)

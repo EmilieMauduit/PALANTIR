@@ -12,6 +12,7 @@ Created on Fri Nov  15 10:09:06 2024
 from cgi import test
 import pandas as pd
 import numpy as np
+from typing import Tuple
 from nenupy.instru.interferometer import ObservingMode
 from nenupy.instru import NenuFAR
 import astropy.units as u
@@ -198,7 +199,7 @@ class DataManipulation:
                 raise ValueError("Invalid instrument name. Available instruments are : 'NenuFAR', 'LOFAR','SKA1 low','SKA2 low','GMRT','VLA','UTR-2'.")
 
         if interaction == 'MS' :
-            flux_to_plot = np.array(self.data_base['pow_received_magnetic'][1:],dtype='float')
+            flux_to_plot = np.array(self.data_base['flux_received_magnetic'][1:],dtype='float')
             frequencies_to_plot = np.array(self.data_base['fc_max_planet'][1:],dtype='float')
             xlabel = '$f_{c,p}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{MS}$  [mJy]'
 
@@ -210,7 +211,7 @@ class DataManipulation:
                 not_escaping = ~escaping
 
         elif interaction == 'SPI' :
-            flux_to_plot = np.array(self.data_base['pow_received_spi'][1:],dtype='float')
+            flux_to_plot = np.array(self.data_base['flux_received_spi'][1:],dtype='float')
             frequencies_to_plot = np.array(self.data_base['fc_max_star'][1:],dtype='float')
             xlabel = '$f_{c,*}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{SPI}$  [mJy]'
 
@@ -226,26 +227,31 @@ class DataManipulation:
         if test_alfven_velocity :
             alfven_velocity = np.array(self.data_base['alfven_velocity'][1:][~np.isnan(flux_to_plot)],dtype='float')
             sw_velocity = np.array(self.data_base['sw_velocity'][1:][~np.isnan(flux_to_plot)],dtype='float')
+            sw_velocity_eff = np.array(self.data_base['sw_effective_velocity'][1:][~np.isnan(flux_to_plot)],dtype='float')
 
-            sub_alfvenic = alfven_velocity > sw_velocity
-            super_alfvenic = ~sub_alfvenic
+            sub_alfvenic_sw = alfven_velocity > sw_velocity
+            sub_alfvenic_eff = alfven_velocity > sw_velocity_eff
+            super_alfvenic_eff = ~sub_alfvenic_eff
+            super_alfvenic_sw = ~sub_alfvenic_sw
 
         frequencies_to_plot = frequencies_to_plot[~np.isnan(flux_to_plot)]
         flux_to_plot = flux_to_plot[~np.isnan(flux_to_plot)]
 
         xmin = kwargs.get('xmin',0.8*np.min(frequencies_to_plot)) ; xmax = kwargs.get('xmax',1.2*np.max(frequencies_to_plot))
         ymin = kwargs.get('ymin',0.8*np.min(flux_to_plot)) ; ymax = kwargs.get('ymax',1.2*np.max(flux_to_plot))
+        print(len(frequencies_to_plot))
 
         fig = plt.figure(figsize=(10,7))
         ax = fig.add_subplot(111)
 
         if test_alfven_velocity :
-            ax.scatter(frequencies_to_plot[sub_alfvenic], flux_to_plot[sub_alfvenic], marker = 'v', color='tab:purple', label='Sub-alfvenic velocity', alpha=0.6)
-            ax.scatter(frequencies_to_plot[super_alfvenic], flux_to_plot[super_alfvenic], marker ='^', color='tab:orange', label='Super-alfvenic velocity', alpha=0.6)
+            ax.scatter(frequencies_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', label='$v_{SW}$ and $v_{SW,eff}$ < $v_A$', alpha=0.6)
+            ax.scatter(frequencies_to_plot[super_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', label='$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
+            ax.scatter(frequencies_to_plot[super_alfvenic_eff & super_alfvenic_sw], flux_to_plot[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
 
         elif test_escaping:
-            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = 'v', color='tab:purple', label="$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
-            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='^', color='tab:orange', label="$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', label="$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
                 marker='^', 
@@ -310,9 +316,12 @@ class DataManipulation:
         if test_alfven_velocity :
             alfven_velocity = np.array(self.data_base['alfven_velocity'][1:][~np.isnan(ydata)], dtype='float')
             sw_velocity = np.array(self.data_base['sw_velocity'][1:][~np.isnan(ydata)], dtype='float')
+            sw_velocity_eff = np.array(self.data_base['sw_effective_velocity'][1:][~np.isnan(ydata)],dtype='float')
 
-            sub_alfvenic = alfven_velocity > sw_velocity
-            super_alfvenic = ~sub_alfvenic
+            sub_alfvenic_sw = alfven_velocity > sw_velocity
+            sub_alfvenic_eff = alfven_velocity > sw_velocity_eff
+            super_alfvenic_eff = ~sub_alfvenic_eff
+            super_alfvenic_sw = ~sub_alfvenic_sw
 
         xmin = kwargs.get('xmin',0.9*np.nanmin(xdata)) ; xmax = kwargs.get('xmax',1.1*np.nanmax(xdata))
         ymin = kwargs.get('ymin',0.9*np.nanmin(ydata)) ; ymax = kwargs.get('ymax',1.1*np.nanmax(ydata))
@@ -327,8 +336,9 @@ class DataManipulation:
         if z is None :
             xdata = xdata[~np.isnan(ydata)] ; ydata = ydata[~np.isnan(ydata)]
             if test_alfven_velocity :
-                ax.scatter(xdata[sub_alfvenic],ydata[sub_alfvenic], marker='v', color='tab:purple', label='Sub-alfvenic velocity',alpha=0.8)
-                ax.scatter(xdata[super_alfvenic],ydata[super_alfvenic], marker='^', color='tab:orange', label='Super-alfvenic velocity',alpha=0.8)
+                ax.scatter(xdata[sub_alfvenic_eff & sub_alfvenic_sw], ydata[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', label='$v_{SW}$ and $v_{SW,eff}$ < $v_A$', alpha=0.6)
+                ax.scatter(xdata[super_alfvenic_eff & sub_alfvenic_sw], ydata[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', label='$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
+                ax.scatter(xdata[super_alfvenic_eff & super_alfvenic_sw], ydata[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
                 ax.legend(fontsize=12)
             else :
                 ax.scatter(xdata[~np.isnan(ydata)],ydata[~np.isnan(ydata)], 
@@ -378,30 +388,30 @@ class DataManipulation:
     ##### TARGET SELECTION ####
 
     def target_selection(self,
-        fc_min_MHz : float = None,
+        fc_range_MHz : Tuple[float,float] = None,
         flux_min_mJy : float = None,
+        declination_range : Tuple[float,float] = None,
         filename : str =  None):
 
         """ This method allows to select the targets with a maximum cyclotron frequency and a maximum estimated flux that are 
-        above the sensitivity of the considered instrument. To be added : possibility to also select the one observable with 
-        the telescope using its coordinates and the RA/DEC coordinates of the targets."""
+        above the sensitivity of the considered instrument. Setting a declination range allows the possibility to also select the 
+        one observable with the telescope using its coordinates and the RA/DEC coordinates of the targets."""
 
         data_base_filtered = self.data_base.iloc[1:].copy()
-        if (fc_min_MHz is None) and (flux_min_mJy is None) :
-            sensitivities = self.instrument_sensitivity
+        sensitivities = self.instrument_sensitivity
+        if (fc_range_MHz is None) :
+            fc_range_MHz = (np.min(sensitivities[0,:]), np.max(sensitivities[0,:]))
 
-            fc_min_MHz = np.min(sensitivities[0,:])
+        if (flux_min_mJy is None) :
             flux_min_mJy = np.min(sensitivities[1,:])
 
-        elif (fc_min_MHz is not None) and (flux_min_mJy is None) :
-            flux_min_mJy = 0.
-        
-        elif (fc_min_MHz is None) and (flux_min_mJy is not None) :
-            fc_min_MHz = 0.
-
-        mask_MS = (data_base_filtered['freq_max_planet'].astype(float) >= fc_min_MHz) & (data_base_filtered['pow_received_magnetic'].astype(float) >= flux_min_mJy)
-        mask_SPI = (data_base_filtered['freq_max_star'].astype(float) >= fc_min_MHz) & (data_base_filtered['pow_received_spi'].astype(float) >= flux_min_mJy)
-        df_select = data_base_filtered[mask_MS | mask_SPI]
+        mask_MS = (data_base_filtered['fc_max_planet'].astype(float) >= fc_min_MHz) & (data_base_filtered['flux_received_magnetic'].astype(float) >= flux_min_mJy)
+        mask_SPI = (data_base_filtered['fc_max_star'].astype(float) >= fc_min_MHz) & (data_base_filtered['flux_received_spi'].astype(float) >= flux_min_mJy)
+        if declination_range is not None :
+            mask_observable = (data_base_filtered['dec'].astype(float) >= declination_range[0]) & (data_base_filtered['dec'].astype(float) <= declination_range[1])
+        else :
+            mask_observable = np.ones_like(mask_MS).astype(bool)
+        df_select = data_base_filtered[(mask_MS | mask_SPI) & mask_observable]
 
         if filename is not None :
             df_select.to_csv(filename, sep=';')

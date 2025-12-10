@@ -193,7 +193,7 @@ class StellarWind:
             Br = magfield_surf * pow(R_star/(d * dua), 3)
         else :
             Br_ini = magfield_surf * pow(R_star/(d_alfven_point * dua), 3)
-            Br = Br_ini * pow(R_star/(d  * dua), 2)
+            Br = Br_ini * pow(d_alfven_point/d, 2)
         
         return Br
 
@@ -306,7 +306,40 @@ class StellarWind:
         return res
 
     @staticmethod
-    def _calc_temperature(M: float, t: float) -> float:
+    def _calc_temperature(M : float, P : float, Fx : float) -> float :
+        """Compute the coronal temperature from 'Johnstone & Güdel, AA, 2015.
+            Gives Tcor in K.
+        
+        :param M:
+            Stellar mass in Msun
+        :type M:
+            float
+
+        :param P:
+            Stellar rotation period in Psun
+        :type P:
+            float
+
+        :param Fx:
+            X-ray flux of the star in erg.cm-2.s-1
+        :type Fx:
+            float
+        """
+
+        Psun = 25.5
+        if not np.isnan(Fx):
+            Tcor = 0.11 * np.power(Fx,0.26)
+        elif (not np.isnan(P)) and (not np.isnan(M)) :
+            Tcor = 1.7 * np.power(M,-0.42) * np.power(P/Psun,0.52)
+        elif not np.isnan(M) :
+            Tcor = 1.7 * np.power(M,0.6)
+        else :
+            Tcor = 1.7
+        
+        return Tcor * 1e6
+
+    @staticmethod
+    def _calc_temperature_jmg2007(M: float, t: float) -> float:
         """Adjust the temperature of the corona for a star of given age.
 
         :param M:
@@ -425,7 +458,8 @@ class StellarWind:
         d = distance #AU
         t = star.age  # yr
         if T is None:
-            T = StellarWind._calc_temperature(star.unnormalize_mass(), t)
+            #T = StellarWind._calc_temperature_jmg2007(star.unnormalize_mass(), t) jmg 2007
+            T = StellarWind._calc_temperature(star.mass, star.rotperiod, star.Xray_flux)
         vc = sqrt(2 * kb * T / mp)
         rc = mp * G * star.unnormalize_mass() / (4 * kb * T)
         vorb = sqrt(G * star.unnormalize_mass() / (d * dua))

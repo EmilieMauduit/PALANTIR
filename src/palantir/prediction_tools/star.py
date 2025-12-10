@@ -97,6 +97,7 @@ class Star:
         self.luminosity = mass
         self.obs_dist = obs_dist
         self.sp_type = sp_type
+        self.Xray_flux = np.nan
         self._sp_type_code = None
         self._rotperiod = None
         self.effective_temperature = None
@@ -252,6 +253,10 @@ class Star:
         for model in models:
             if "Tout" in model:
                 R.append(TOUT(mass))
+            elif "Rstar_power_law" in model :
+                a = 1.1105583907357073
+                b = 1.0253832950976705
+                R.append(a*np.power(mass,b))
         if Rmean:
             return np.mean(R)
         if Rmax:
@@ -305,6 +310,10 @@ class Star:
             else :
                 magfield = np.sqrt(B4*B6)
 
+        elif model == 'Bstar_Vedantham' :
+            Bsun = 1.435 #G
+            magfield = Bsun * np.power(10, 1 - (3*np.log10(mass)))
+
         return magfield
 
     @staticmethod
@@ -335,13 +344,13 @@ class Star:
             sp_type_code=3
             return sp_type_code
         
-        if ('V' in sp_type) and ('IV' not in sp_type) and ('VI' not in sp_type):
+        if (('V' in sp_type) or ('IV' in sp_type) or ('VI' in sp_type)) and ("VII" not in sp_type):
             sp_type_code = 1
             return sp_type_code
         elif ('IV-V' in sp_type) or ('IV/V' in sp_type) :
             sp_type_code = 1
             return sp_type_code
-        elif ("III" not in sp_type) and ("IV" not in sp_type) and ("VI" not in sp_type) and ("VII" not in sp_type) and ("II" not in sp_type) and ("I"not in sp_type) :
+        elif ("III" not in sp_type) and ("VII" not in sp_type) and ("II" not in sp_type) and ("I"not in sp_type) : #and ("IV" not in sp_type) and ("VI" not in sp_type)
             if ('D' in sp_type) or ('M' in sp_type) or ('K' in sp_type) or ('G' in sp_type) or ('F' in sp_type) :
                 sp_type_code=1
                 return sp_type_code

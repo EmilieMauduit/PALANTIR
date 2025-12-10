@@ -23,7 +23,7 @@ class Emission:
         name: str,
         mag_field: dict,
         pow_emission: dict,
-        pow_received: dict,
+        flux_received: dict,
         fcmax_star: dict,
         fp_planet : dict,
         fp_star : dict,
@@ -63,9 +63,9 @@ class Emission:
         self._flux_kinetic_au = None
         self._flux_magnetic_au = None
         self._flux_spi_au = None
-        self.pow_received_kinetic = pow_received
-        self.pow_received_magnetic = pow_received
-        self.pow_received_spi = pow_received
+        self.flux_received_kinetic = flux_received
+        self.flux_received_magnetic = flux_received
+        self.flux_received_spi = flux_received
 
     def __str__(self):
         return("Maximum frequency emission at the planet : fcp_max = {} MHz \n".format(self.freq_c_max_planet * 1e-6)
@@ -79,9 +79,9 @@ class Emission:
             + "Kinetic flux of the emission emitted at 1 AU : phi_kin_au = {} .10^10 Jy\n".format(self.flux_kinetic_au / 1e-26 / 1e10)
             + "Magnetic flux of the emission emitted at 1 AU : phi_mag_au = {} .10^10 Jy\n".format(self.flux_magnetic_au / 1e-26 / 1e10)
             + "SPI flux of the emission emitted at 1 AU : phi_spi_au = {} .10^10 Jy\n".format(self.flux_spi_au / 1e-26 / 1e10)
-            + "Kinetic flux of the emission received by the instrument : phi_kin = {} mJy\n".format(self._pow_received_kinetic * 1e3 / 1e-26)
-            + "Magnetic flux of the emission received by the instrument : phi_mag = {} mJy\n".format(self._pow_received_magnetic * 1e3 / 1e-26)
-            + "SPI flux of the emission received by the instrument : phi_spi = {} mJy\n".format(self._pow_received_spi * 1e3 / 1e-26)
+            + "Kinetic flux of the emission received by the instrument : phi_kin = {} mJy\n".format(self._flux_received_kinetic * 1e3 / 1e-26)
+            + "Magnetic flux of the emission received by the instrument : phi_mag = {} mJy\n".format(self._flux_received_magnetic * 1e3 / 1e-26)
+            + "SPI flux of the emission received by the instrument : phi_spi = {} mJy\n".format(self._flux_received_spi * 1e3 / 1e-26)
         )
 
     # --------------------------------------------------------- #
@@ -235,20 +235,17 @@ class Emission:
             raise KeyError(
                 "planet or star or magnetic_moment or stellar_wind or sw_jupiter not in value"
             )
-
-        if value["stellar_wind"].alfven_velocity < value["stellar_wind"].velocity_sw :
-            self._pow_emission_spi = np.nan
+        
+        if not np.isnan(self._mag_field_planet) :
+            self._pow_emission_spi = self.pow_emission_magnetic
         else :
-            if not np.isnan(self._mag_field_planet) :
-                self._pow_emission_spi = self.pow_emission_magnetic
-            else :
-                R_iono = value["planet"].unnormalize_radius() * 1.2
-                beta = 2e-3 
-                self._pow_emission_spi = ( beta * np.pi
-                * value["stellar_wind"].effective_velocity
-                * pow(value["stellar_wind"].mag_field , 2)
-                * pow(R_iono,2)
-                ) / (4e-7 * np.pi)
+            R_iono = value["planet"].unnormalize_radius() * 1.2
+            beta = 2e-3 
+            self._pow_emission_spi = ( beta * np.pi
+            * value["stellar_wind"].effective_velocity
+            * pow(value["stellar_wind"].mag_field , 2)
+            * pow(R_iono,2)
+            ) / (4e-7 * np.pi)
 
     #=============== Flux at 1AU ===============#
 
@@ -258,7 +255,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_kinetic_au = self._pow_emission_kinetic / (
-                    1.6 * 0.25 * self.freq_c_max_planet * (dua**2)
+                    1.6 * 0.5 * self.freq_c_max_planet * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_kinetic_au = np.nan
@@ -270,7 +267,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_magnetic_au = self._pow_emission_magnetic / (
-                    1.6 * 0.25 * self.freq_c_max_planet * (dua**2)
+                    1.6 * 0.5 * self.freq_c_max_planet * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_magnetic_au = np.nan
@@ -282,7 +279,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_spi_au = self._pow_emission_spi / (
-                    0.16 * 0.25 * self.freq_c_max_star * (dua**2)
+                    0.16 * 0.5 * self.freq_c_max_star * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_spi_au = np.nan
@@ -291,55 +288,58 @@ class Emission:
     #=============== Powers received at Earth ===============#
 
     @property
-    def pow_received_kinetic(self):
-        return self._pow_received_kinetic
+    def flux_received_kinetic(self):
+        return self._flux_received_kinetic
 
-    @pow_received_kinetic.setter
-    def pow_received_kinetic(self, value: dict):
+    @flux_received_kinetic.setter
+    def flux_received_kinetic(self, value: dict):
         if "star" not in value:
             log.error("KeyError: star not in value.")
             raise KeyError("star not in value")
 
         pc = 3.08568e16  # m
         try : 
-            self._pow_received_kinetic = self._pow_emission_kinetic / (
-                1.6 * 0.25 * self.freq_c_max_planet * pow(value["star"].obs_dist * pc, 2)
+            self._flux_received_kinetic = self._pow_emission_kinetic / (
+                1.6 * 0.5 * self.freq_c_max_planet * pow(value["star"].obs_dist * pc, 2)
             )
         except (ZeroDivisionError):
-            self._pow_received_kinetic = np.nan
+            self._flux_received_kinetic = np.nan
 
     @property
-    def pow_received_magnetic(self):
-        return self._pow_received_magnetic
+    def flux_received_magnetic(self):
+        return self._flux_received_magnetic
 
-    @pow_received_magnetic.setter
-    def pow_received_magnetic(self, value: dict):
+    @flux_received_magnetic.setter
+    def flux_received_magnetic(self, value: dict):
         if "star" not in value:
             log.error("KeyError: star not in value.")
             raise KeyError("star not in value")
 
         pc = 3.08568e16  # m
         try :
-            self._pow_received_magnetic = self._pow_emission_magnetic / (
-                1.6 * 0.25 * self.freq_c_max_planet * pow(value["star"].obs_dist * pc, 2)
+            self._flux_received_magnetic = self._pow_emission_magnetic / (
+                1.6 * 0.5 * self.freq_c_max_planet * pow(value["star"].obs_dist * pc, 2)
             )
         except (ZeroDivisionError):
-            self._pow_received_magnetic = np.nan
+            self._flux_received_magnetic = np.nan
 
     @property
-    def pow_received_spi(self):
-        return self._pow_received_spi
+    def flux_received_spi(self):
+        return self._flux_received_spi
 
-    @pow_received_spi.setter
-    def pow_received_spi(self, value: dict):
-        if "star" not in value:
-            log.error("KeyError: star not in value.")
-            raise KeyError("star not in value")
+    @flux_received_spi.setter
+    def flux_received_spi(self, value: dict):
+        if ("star" not in value) or "stellar_wind" not in value:
+            log.error("KeyError: star or stellar_wind not in value.")
+            raise KeyError("star or stellar_wind not in value")
 
         pc = 3.08568e16  # m
-        try :
-            self._pow_received_spi = self._pow_emission_spi / (
-                0.16 * 0.25 * self.freq_c_max_star * pow(value["star"].obs_dist * pc, 2)
-            )
-        except (ZeroDivisionError):
-            self._pow_received_spi = np.nan
+        if value["stellar_wind"].alfven_velocity < value["stellar_wind"].velocity_sw :
+            self._flux_received_spi = np.nan
+        else :
+            try :
+                self._flux_received_spi = self._pow_emission_spi / (
+                    0.16 * 0.5 * self.freq_c_max_star * pow(value["star"].obs_dist * pc, 2)
+                )
+            except (ZeroDivisionError):
+                self._flux_received_spi = np.nan

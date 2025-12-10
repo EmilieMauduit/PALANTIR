@@ -57,28 +57,28 @@ class Config:
         self.magnetic_moment_models = [config.setting[i] for i in range(3,10) if int(config.value[i]) == 1]
         self.dynamo_density_models = [config.setting[i] for i in range(10, 12) if int(config.value[i]) == 1]
         self.planet_radius_models = [config.setting[i] for i in range(13, 15) if int(config.value[i]) == 1]
-        self.star_radius_models = [config.setting[i] for i in range(16, 17) if int(config.value[i]) == 1]
+        self.star_radius_models = [config.setting[i] for i in range(16, 18) if int(config.value[i]) == 1]
         self.planet_luminosity_models = [
-            config.setting[i] for i in range(17, 20) if int(config.value[i]) == 1
+            config.setting[i] for i in range(18, 21) if int(config.value[i]) == 1
         ]
-        self.star_magfield_models = [config.setting[i] for i in range(21, 23) if int(config.value[i]) == 1]
-        self.star_magfield_catalog_only = True if (int(config.value[23]) == 1) else False
+        self.star_magfield_models = [config.setting[i] for i in range(22, 25) if int(config.value[i]) == 1]
+        self.star_magfield_catalog_only = True if (int(config.value[25]) == 1) else False
         self.rho_crit = int(config.value[12])
         self.rc_dyn = True if int(config.value[6]) == 1 else False
         self.radius_expansion = True if int(config.value[15]) == 1 else False
-        self.sp_type_code = int(config.value[20])
-        self.talk = True if int(config.value[24]) == 1 else False
-        self.output_path = config.value[25]
+        self.sp_type_code = int(config.value[21])
+        self.talk = True if int(config.value[26]) == 1 else False
+        self.output_path = config.value[27]
         self.output_params = ["name","ra","dec","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance", "semi_major_axis",
             "planet_rotation_rate", "planet_orbital_period","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
             "star_magfield","star_rotperiod","star_luminosity","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
-            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","standoff_distance","sw_density","sw_velocity",
+            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","standoff_distance","sw_density","sw_effective_velocity","sw_velocity",
             "coronal_temperature","sw_magfield","distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
             "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
-            "flux_spi_au", "pow_received_kinetic","pow_received_magnetic", "pow_received_spi",
+            "flux_spi_au", "flux_received_kinetic","flux_received_magnetic", "flux_received_spi",
             "fc_max_star", "fp_star"]
         self.output_params_units = ["","hh:mm:ss", "dd:mm:ss", "MJ", "RJ", "LS", "AU", "AU","wJ","w_orb_J","", "MS", "RS", "yr", "pc", "T", "days",
-            "LS", "", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "K", "T","AU", "m.s-1", "T", "MHz", "MHz", "10^14W", 
+            "LS", "", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","AU", "m.s-1", "T", "MHz", "MHz", "10^14W", 
             "10^14W", "10^14W","10^10Jy", "10^10Jy", "10^10Jy", "mJy","mJy", "mJy", "MHz", "MHz"]
         logger.info('Configuration parameters succesfully initialized.')
 

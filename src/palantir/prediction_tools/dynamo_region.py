@@ -69,11 +69,11 @@ class DynamoRegion:
         rcJ = 0.8487819514093978 #Rj
         Bdyn = 4.8 * pow(
             (planet.unnormalize_mass() / MS)
-            * (planet._luminosity ** 2)
+            * (planet.luminosity ** 2)
             * pow(RS / planet.unnormalize_radius(), 7),
             1.0 / 6,
-        )
-        self.mag_field_dynamo = Bdyn
+        ) #kG
+        self.mag_field_dynamo = Bdyn * 1e-1 #T
 
         if jup :
             if rc_dyn : 
@@ -89,6 +89,9 @@ class DynamoRegion:
             else :
                 if planet.mass > 13. :
                     self.mag_field_equatorial = Bdyn / (2 * m.sqrt(2))
+                elif planet.mass < 0.17 :
+                    self.mag_field_equatorial = np.nan
+                    self.mag_field_dynamo = np.nan
                 else :
                     self.mag_field_equatorial = pow(1 - (0.17 / planet.mass), 3) * Bdyn / (2 * m.sqrt(2))
 
