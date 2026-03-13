@@ -150,7 +150,8 @@ class Star:
 
     @property
     def rotperiod(self):
-        self._rotperiod = self._compute_rotperiod(age=self.age)
+        if self._rotperiod is None :
+            self._rotperiod = self._compute_rotperiod(age=self.age)
         return self._rotperiod
     
     @property
@@ -203,18 +204,6 @@ class Star:
         pc = 3.08568e16  # m
         return self.obs_dist * pc
 
-    def alfven_radius(self, d: float) -> float:
-        """Computes the Alfvén radius of the star.
-        :param d:
-            Distance between the star and the planet, in m.
-        :type d:
-            float
-        """
-
-        Ra = 1
-
-        return Ra
-
     def compute_effective_temperature(self, value):
         """ Effective temperature of the star, computed with the Stefan-Boltzman law."""
         Teff = value
@@ -240,7 +229,7 @@ class Star:
                                         rotperiod = self.rotperiod, 
                                         Teff=self.effective_temperature,
                                         mass = self.mass,
-                                        sp_type= self.sp_type
+                                        sptype= self.sp_type
                                         ) * 1e-4
             else : 
                 self.magfield = mag_field * 1e-4
@@ -257,6 +246,13 @@ class Star:
                 a = 1.1105583907357073
                 b = 1.0253832950976705
                 R.append(a*np.power(mass,b))
+            elif "Rstar_polyfit" in model : 
+                coeffs_order_2 = [0.017984431,1.0366339,0.082575641]
+                coeffs_order_3 = [0.026634143,1.0922572,-0.16878130,-0.37486017]
+                R_log=0
+                for i,c in enumerate(coeffs_order_2):
+                    R_log += c * np.power(np.log10(mass),i)
+                R.append(10**R_log)
         if Rmean:
             return np.mean(R)
         if Rmax:
@@ -271,8 +267,43 @@ class Star:
         return rotperiod
 
     @staticmethod
-    def _compute_magfield(model : str, rotperiod: float, Teff : float, mass : float, sp_type :str):
+    def _compute_magfield(model : str, rotperiod: float, Teff : float, mass : float, sptype :str):
+        """If the stellar magnetic field is computed and not taken from the catalog provided by Duchêne et al, 2025.
+            Three models are available : 
+                - 'Bstar_original', from Griessmeier et al, 2077, A&A
+                - 'Bstar_polyfit :  a polynomiual fit based on a catalog of measured $B_{star}$ found in the litterature
+                - 'Bstar_Vedantham' : a simplistic model proposeb by H.Vedantham for the SPi chapter in the recent SKA book.
 
+            :param model:
+                The name of the model to be used for the computation.
+            :type model:
+                str
+            :param rotperiod:
+                The rotation period of the star, in days.
+            :type rotperiod:
+                float
+            :param Teff:
+                The effective temperature of the star, in K.
+            :type Teff:
+                float
+            :param mass:
+                The mass of the star, in solar masses MS.
+            :type mass:
+                float
+            :param sptype:
+                The spectral type of the star.
+            :type sptype:
+                str
+
+            :returns:
+                The stellar magnetic field, in T.
+            :rtype:
+                float
+
+            :raises:
+                ValueError if the model parameter is not set to one of the available ones.
+        """
+        
         if model == 'Bstar_original' :
             Psun = 25.5  # days
             Bsun = 1.435e-4  # T

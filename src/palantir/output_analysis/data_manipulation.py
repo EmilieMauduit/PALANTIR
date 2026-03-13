@@ -68,6 +68,7 @@ class DataManipulation:
         np.ndarray
         """
         self.data_base = data_base
+        self._dict_axis_label = None
         self.instrument_name = instrument_name
         self._instrument_coordinates = None
         self._instrument_sensitivity = None
@@ -76,6 +77,64 @@ class DataManipulation:
     # ------------------------ Methods ------------------------ #
 
     #### Setter ####
+    @property
+    def dict_axis_label(self):
+        if self._dict_axis_label is None :
+            dict_axis_label = {
+                'name' : ['name','[]'],
+                'ra' : ['Right Ascension', '[]'], 
+                'dec' : ['Declination', '[]'], 
+                'planet_mass' : ['$M_p$' , '[$M_J$]'], 
+                'planet_radius' : ['$R_p$', '[$R_J$]'],
+                'planet_luminosity' : ['$L_p$', '[$L_S$]'],
+                'star_planet_distance' : ['$d_{*-p}$', '[AU]'],
+                'semi_major_axis' : ['a', '[AU]'],
+                'planet_rotation_period' : ['$T_{rot,p}$', '[hr]'],
+                'planet_orbital_period' : ['$T_{orb,p}$', '[days]'], 
+                'star_simbad_id' : ['Simbad ID', '[]'],
+                'star_mass' : ['$M_*$', '[$M_S$]'], 
+                'star_radius' : ['$R_*$', '[$R_S$]'],
+                'star_age' : ['t_*', '[yr]'], 
+                'earth_distance' : ['s', '[pc]'],
+                'star_magfield' : ['$B_*$', '[T]'],
+                'star_rotperiod' : ['$\omega_{rot,*}$', '[days]'],
+                'star_luminosity' : ['$L_*$', '[$L_S$]'],
+                'spectral_type' : ['Spectral type', '[]'],
+                'spectral_type_code' : ['Spectral type code', '[]'],
+                'star_effective_temp' : ['$T_{eff,*}$', '[K]'], 
+                'dynamo_density' : [r"$\rho_{dyn}$", r"[$\rho_{dyn,J}$]"],
+                'dynamo_radius' : ['$r_{c,dyn}$', '[$r_{c,dyn,J}$]'],
+                'B_dyn' : ['$B_{p,dyn}$', '[T]'],
+                'B_eq' : ['$B_{p,eq}$', '[T]'], 
+                'magnetic_moment' : ['$M_{mag,p}$', '[$M_{mag,J}$]'],
+                'magnetosphere_radius' : ['$R_m$', '[$R_p$]'],
+                'sw_density' : ['$n_{e,SW}$', '[$m^{-3}$]'],
+                'sw_effective_velocity' : ['$v_{eff,SW}$', '[$m.s^{-1}$]'],
+                'sw_velocity' : ['$v_{SW}$', '[$m.s^{-1}$]'],
+                'coronal_temperature' : ['$T_{corona}$', '[K]'],
+                'sw_radial_magfield_planet' : ['$B_{radial}(d_{*-p})$', '[T]'],
+                'sw_azimuthal_magfield_planet' : ['$B_{\phi}(d_{*-p})$', '[T]'],
+                'sw_total_magfield_planet' : ['$B_{total}(d_{*-p})$', '[T]'],
+                'sw_perp_magfield_planet' : ['$B_{SW}$', '[T]'],
+                'distance_alfven_point' : ['$d_{A}$', '[AU]'], 
+                'alfven_velocity' : ['$v_A$', '[$m.s^{-1}$]'],
+                'magnetic_field_planet' : ['$B_p$', '[T]'],
+                'fc_max_planet' : ['$f_{c,p}^{max}$', '[MHz]'],
+                'fp_planet' : ['$f_{p,p}$', '[MHz]'], 
+                'pow_emission_kinetic' : ['$P_{kin}^{em}$', '[W]'],
+                'pow_emission_magnetic' : ['$P_{mag}^{em}$', '[W]'], 
+                'pow_emission_spi' : ['$P_{SPI}^{em}$', '[W]'],
+                'flux_kinetic_au' : ['$\Phi_{kin}^{AU}$', '[Jy]'],
+                'flux_magnetic_au' : ['$\Phi_{mag}^{AU}$', '[Jy]'],
+                'flux_spi_au' : ['$\Phi_{SPI}^{AU}$', '[Jy]'], 
+                'flux_received_kinetic' : ['$\Phi_{kin}$', '[mJy]'],
+                'flux_received_magnetic' : ['$\Phi_{mag}$', '[mJy]'], 
+                'flux_received_spi' : ['$\Phi_{SPI}$', '[mJy]'], 
+                'fc_max_star' : ['$f_{c,*}^{max}$', '[MHz]'],
+                'fp_star' : ['$f_{p,*}$', '[MHz]']
+            }
+            self._dict_axis_label = dict_axis_label
+        return self._dict_axis_label
 
     @property
     def instrument_coordinates(self):
@@ -207,7 +266,7 @@ class DataManipulation:
                 fp_planet = np.array(self.data_base['fp_planet'][1:][~np.isnan(flux_to_plot)],dtype='float')
                 fc_planet = frequencies_to_plot[~np.isnan(flux_to_plot)]
 
-                escaping = fc_planet > 10*fp_planet
+                escaping = fc_planet > fp_planet
                 not_escaping = ~escaping
 
         elif interaction == 'SPI' :
@@ -250,8 +309,8 @@ class DataManipulation:
             ax.scatter(frequencies_to_plot[super_alfvenic_eff & super_alfvenic_sw], flux_to_plot[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
 
         elif test_escaping:
-            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', label="$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
-            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
                 marker='^', 
@@ -277,7 +336,7 @@ class DataManipulation:
         ax.set_yscale('log')
         ax.set_title(kwargs.get('title',""))
         plt.grid()
-        plt.legend(fontsize=12, ncol = 3)
+        plt.legend(fontsize=12, ncol = 1)
         plt.tight_layout()
 
         figname = kwargs.get("figname","")
@@ -305,13 +364,11 @@ class DataManipulation:
         """
 
         if (x not in self.data_base.keys()) or (y not in self.data_base.keys()) :
-            raise ValueError("Invalid field name. Make sure you chose keys that exits in the database. Please refer to the documentation to see available field names.")
+            raise ValueError("Invalid field name. Make sure you chose keys that exits in the database. Field names can be : {}".format(self.data_base.keys()))
         
         xdata = np.array(self.data_base[x][1:],dtype='float')
         ydata = np.array(self.data_base[y][1:],dtype='float')
         zdata = np.array(self.data_base[z][1:],dtype='float') if z is not None else None
-
-        ydata = ydata * 1e14 if y == 'pow_emission_spi' else ydata
 
         if test_alfven_velocity :
             alfven_velocity = np.array(self.data_base['alfven_velocity'][1:][~np.isnan(ydata)], dtype='float')
@@ -326,9 +383,9 @@ class DataManipulation:
         xmin = kwargs.get('xmin',0.9*np.nanmin(xdata)) ; xmax = kwargs.get('xmax',1.1*np.nanmax(xdata))
         ymin = kwargs.get('ymin',0.9*np.nanmin(ydata)) ; ymax = kwargs.get('ymax',1.1*np.nanmax(ydata))
 
-        xlabel = kwargs.get('xlabel',x + " [" + self.data_base[x][0] + "]")
-        ylabel = kwargs.get('ylabel',y + " [" + self.data_base[y][0] + "]")
-        zlabel = kwargs.get('zlabel',z + " [" + self.data_base[z][0] + "]") if z is not None else None
+        xlabel = kwargs.get('xlabel', self.dict_axis_label[x][0] + " " + self.dict_axis_label[x][1])
+        ylabel = kwargs.get('ylabel', self.dict_axis_label[y][0] + " " + self.dict_axis_label[y][1])
+        zlabel = kwargs.get('zlabel', self.dict_axis_label[z][0] + " " + self.dict_axis_label[z][1]) if z is not None else None
 
         fig = plt.figure(figsize=(10,7))
         ax = fig.add_subplot(111)
@@ -372,6 +429,91 @@ class DataManipulation:
         ax.set_yscale(kwargs.get('yscale','linear'))
         ax.set_title(kwargs.get('title',""))
         ax.grid()
+
+        figname = kwargs.get("figname","")
+        if figname != "" :
+            plt.savefig(
+                figname,
+                transparent=kwargs.get('transparent',True),
+                bbox_inches='tight', 
+                dpi=kwargs.get('dpi',150)
+                )
+
+        plt.show()
+        plt.close('all')
+
+    def plot_simple_histogram_parameters(self,
+        xfield : str,
+        **kwargs) -> None : 
+        
+        """This functions allows to do a simple histogram any parameter. 
+
+        :param xfield:
+            The key of the column to use as the x axis.
+        :type xfield:
+            str
+
+        .. rubric:: `**kwargs`
+
+        :param xlabel:
+            To specify what to put as the label of the x-axis. Default is `xfield`.
+        :type xlabel:
+            str
+
+        :param title:
+            The title to give the plot. Default is no title.
+        :type title:
+            str
+
+        :param bins:
+            The number of bins for the histogram. Default is 25.
+        :type bins:
+            int
+
+        :param range:
+            The range of values for the histogram. Default is (vmin,vmax).
+        :type range:
+            Tuple[float,float]
+
+        :param color:
+            The color of the points. Default is 'tab:blue'.
+        :type color:
+            str
+
+        :param figname:
+            If this parameter is set, the plot will be saved with the given name. Default is None.
+        :type figname:
+            str
+
+        :param transparent:
+            To specify if the background of the plot should be transparent or white. Default is True.
+        :type transparent:
+            bool
+
+        :param dpi:
+            To define the resolution of the plot if saved. Default is 150.
+        :type dpi:
+            int
+        """
+        if (xfield not in self.data_base.keys()) :
+            raise ValueError("Invalid field name. Make sure you chose keys that exits in the database. Field names can be : {}".format(self.data_base.keys()))
+        
+        fig = plt.figure(figsize=(10,7))
+        ax = fig.add_subplot(111)
+
+        ax.hist(np.array(self.data_base[xfield][1:],dtype='float'), 
+                bins = kwargs.get('bins',25),
+                color = kwargs.get('color','tab:blue'),
+                range = kwargs.get('range',),
+                histtype = 'step'
+            )
+
+        ax.set_xlabel(kwargs.get('xlabel', self.dict_axis_label[xfield][0] + " " + self.dict_axis_label[xfield][1]), fontsize=18)
+        ax.set_ylabel('Count', fontsize=18)
+        ax.tick_params(axis='both',labelsize=14)
+        ax.set_title(kwargs.get('title',""))
+        plt.grid()
+        plt.tight_layout()
 
         figname = kwargs.get("figname","")
         if figname != "" :

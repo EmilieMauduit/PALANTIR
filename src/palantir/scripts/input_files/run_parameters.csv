@@ -16,7 +16,7 @@ radius_original;1
 radius_polyfit;0
 radius_expansion;1
 Tout;0
-Rstar_power_law;1
+Rstar_polyfit;1
 Burrows;0
 Baraffe_irrad;0
 Baraffe_noirrad;1

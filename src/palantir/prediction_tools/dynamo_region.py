@@ -43,7 +43,7 @@ class DynamoRegion:
         self.mag_field_dynamo = None
         self.mag_field_equatorial = None
 
-    def _str__(self):
+    def __str__(self):
         return(
             "Critical transition density, rho_crit={} g.cm-3.\n".format(self.critical_density)
             + "Density of the dynamo region, rhoc={} rhocJ.\n".format(self.density)

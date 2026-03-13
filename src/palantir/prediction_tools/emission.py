@@ -214,8 +214,8 @@ class Emission:
         beta = 2e-3 
         self._pow_emission_magnetic = ( beta * np.pi
             * value["stellar_wind"].effective_velocity 
-            * pow(value["stellar_wind"].mag_field, 2)
-            * pow(value["magnetic_moment"].standoff_dist,2)
+            * pow(value["stellar_wind"].perp_mag_field, 2)
+            * pow(value["magnetic_moment"].magnetosphere_radius,2)
             ) / (4e-7 * np.pi)
 
     @property
@@ -243,7 +243,7 @@ class Emission:
             beta = 2e-3 
             self._pow_emission_spi = ( beta * np.pi
             * value["stellar_wind"].effective_velocity
-            * pow(value["stellar_wind"].mag_field , 2)
+            * pow(value["stellar_wind"].perp_mag_field , 2)
             * pow(R_iono,2)
             ) / (4e-7 * np.pi)
 

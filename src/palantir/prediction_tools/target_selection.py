@@ -70,16 +70,17 @@ class Config:
         self.talk = True if int(config.value[26]) == 1 else False
         self.output_path = config.value[27]
         self.output_params = ["name","ra","dec","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance", "semi_major_axis",
-            "planet_rotation_rate", "planet_orbital_period","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
+            "planet_rotation_period", "planet_orbital_period","tidally_locked","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
             "star_magfield","star_rotperiod","star_luminosity","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
-            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","standoff_distance","sw_density","sw_effective_velocity","sw_velocity",
-            "coronal_temperature","sw_magfield","distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
+            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","magnetosphere_radius","sw_density","sw_effective_velocity","sw_velocity",
+            "coronal_temperature","sw_radial_magfield_planet","sw_azimuthal_magfield_planet","sw_total_magfield_planet","sw_perp_magfield_planet",
+            "distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
             "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
             "flux_spi_au", "flux_received_kinetic","flux_received_magnetic", "flux_received_spi",
             "fc_max_star", "fp_star"]
-        self.output_params_units = ["","hh:mm:ss", "dd:mm:ss", "MJ", "RJ", "LS", "AU", "AU","wJ","w_orb_J","", "MS", "RS", "yr", "pc", "T", "days",
-            "LS", "", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","AU", "m.s-1", "T", "MHz", "MHz", "10^14W", 
-            "10^14W", "10^14W","10^10Jy", "10^10Jy", "10^10Jy", "mJy","mJy", "mJy", "MHz", "MHz"]
+        self.output_params_units = ["","hh:mm:ss", "dd:mm:ss", "MJ", "RJ", "LS", "AU", "AU","hr","days","","", "MS", "RS", "yr", "pc", "T", "days",
+            "LS", "", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
+            "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz"]
         logger.info('Configuration parameters succesfully initialized.')
 
         

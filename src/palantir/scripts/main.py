@@ -65,16 +65,9 @@ palantir.setup_logging(log_filepath=config_param.output_path + '/' + dateofrun +
 log.info('This run was made with version {} of PALANTIR.'.format(palantir.__version__))
 config_param.log_current_run_parameters()
 
-# Criterions for target selection
-
-selection_config = pd.read_csv(
-    r"/Users/emauduit/Documents/These/target_selection/Programmes/selection.csv",
-    delimiter=";",
-)
-
-
 # --------------------------------------------------------- #
 # ---------------------- Data input ----------------------- #
+# --------------------------------------------------------- #
 
 dict_data = { 'nasa_data' : 'exoplanet_catalog_NASA.csv',
             'exoplanet_data' : 'exoplanet.eu_catalog.csv',
@@ -83,11 +76,14 @@ dict_data = { 'nasa_data' : 'exoplanet_catalog_NASA.csv',
 
 data =pd.read_csv(maps_dir / dict_data[config_param.database])
 data = config_param.param_names(data=data)
-
+os.system('cp ' + str(maps_dir / dict_data[config_param.database]) + ' ' + config_param.output_path +"/"+dateofrun+"/catalog_input.csv")
 
 # --------------------------------------------------------- #
 # ------------------------ Main --------------------------- #
 # --------------------------------------------------------- #
+
+
+# Instanciating stellar and planetary references as the Sun and Jupiter
 
 sun = Star(
     name="Sun",
@@ -97,29 +93,30 @@ sun = Star(
     obs_dist=1.0,
     sp_type ='GV',
     )
-jup = Planet(
+jupiter  = Planet(
     name="Jupiter",
     mass=1.0,
     radius={"models": config_param.planet_radius_models, "radius": 1.0},
+    semi_major_axis=5.4546,
     distance=5.2,
     eccentricity=0.0487,
-    worb={"star_mass": MS, "worb": 1.0},
+    Torb={"star_mass": MS, "Torb": 1.0},
     luminosity={
         "models": config_param.planet_luminosity_models,
         "luminosity": np.nan,
         "star_age": 4.6,
     },
-    wrot=1.0,
+    Trot=0.41351,
 )
-jup.tidal_locking(age=4.6e9, star_mass=1.0)
+jupiter.tidal_locking(age=4.6e9, star_mass=1.0)
 sun.compute_effective_temperature(np.nan)
 sun.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : 1.435})
-dyn_region_jup = DynamoRegion.from_planet(planet=jup, rhocrit=config_param.rho_crit)
-dyn_region_jup.magnetic_field(planet=jup,rc_dyn=config_param.rc_dyn, jup=True)
-mag_moment_jup = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.56e27, Rs=1.0)
-vjup, vejup, nejup, Tjup = StellarWind._Parker(star=sun, distance=jup.stardist, T=0.81e6)
+dyn_region_jup = DynamoRegion.from_planet(planet=jupiter, rhocrit=config_param.rho_crit)
+dyn_region_jup.magnetic_field(planet=jupiter,rc_dyn=config_param.rc_dyn, jup=True)
+mag_moment_jup = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.56e27, Rm=1.0)
+vjup, vejup, nejup, Tjup = StellarWind._Parker(star=sun, distance=jupiter.stardist,eccentricity = jupiter.eccentricity, T=0.81e6)
 sw_jup = StellarWind(
-    ne=nejup, v = vjup, ve=vejup, Tcor=Tjup, Bsw={"planet": jup, "star": sun, "vsw":vjup}
+    ne=nejup, v = vjup, ve=vejup, Tcor=Tjup, Bsw={"planet": jupiter, "star": sun, "vsw":vjup, "eccentricity" : jupiter.eccentricity}
 )
 
 selected_targets = []
@@ -127,8 +124,6 @@ selected_targets = []
 i = 1
 
 skipped_targets = open('skipped_targets.txt', "w")
-#df_target=pd.DataFrame()
-#df_target['0'] = pd.Series(config_param.output_params_units, index = config_param.output_params)
 
 new_rows = [config_param.output_params_units]
 
@@ -165,26 +160,22 @@ for target in data.itertuples():
                 star_age = 0.7
             else:
                 star_age = target.star_age
-        
-        if np.isnan(target.orbital_period) :
-            log.info("Planetary orbital period unknown")
-            skipped_targets.write(target.pl_name + ': planetary orbital period unknown\n')
-            continue
 
         planet = Planet(
             name=target.pl_name,
             mass=planet_mass,
             radius={"models": config_param.planet_radius_models, "radius": target.radius},
+            semi_major_axis=target.semi_major_axis,
             distance=planet_distance,
             eccentricity=target.eccentricity,
-            worb={"star_mass": target.star_mass, "worb": np.nan},
+            Torb={"star_mass": target.star_mass, "Torb": target.orbital_period},
             luminosity={
                 "models": config_param.planet_luminosity_models,
                 "luminosity": np.nan,
                 "star_age": star_age,
             },
             detection_method=target.detection_type,
-            wrot=1.0,
+            Trot=jupiter.rotperiod,
         )
         star = Star(
             name=target.star_name,
@@ -197,12 +188,14 @@ for target in data.itertuples():
 
         if np.isnan(target.radius) and config_param.radius_expansion :
             planet.radius_expansion(luminosity=star.luminosity)
-        try:
-            planet.tidal_locking(age=star.age, star_mass=star.mass)
-        except OverflowError:
-            log.info("Divergence in tidal locking")
-            skipped_targets.write(target.pl_name + ': divergence in tidal locking\n')
-            continue
+
+        if (np.isnan(target.eccentricity)) or (target.eccentricity == 0.) :
+            try:
+                planet.tidal_locking(age=star.age, star_mass=star.mass)
+            except OverflowError:
+                log.info("Divergence in tidal locking")
+                skipped_targets.write(target.pl_name + ': divergence in tidal locking\n')
+                continue
         
         if star.sp_type_code > config_param.sp_type_code :
             log.info("Star spectral type is not consistent with configuration parameters.")
@@ -246,17 +239,17 @@ for target in data.itertuples():
             skipped_targets.write(target.pl_name + ' : divergence in stellar wind calculation\n')
             continue
 
-        magnetic_moment = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.0, Rs=1.0)
+        magnetic_moment = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.0, Rm=1.0)
         magnetic_moment.magnetic_moment(
-            dynamo=dyn_region, planet=planet, jup=jup, dynamo_jup = dyn_region_jup
+            dynamo=dyn_region, planet=planet, jup=jupiter, dynamo_jup = dyn_region_jup
         )
-        magnetic_moment.magnetosphere_radius(mag_moment_jup, stellar_wind=stellar_wind)
+        magnetic_moment.calc_magnetosphere_radius(mag_moment_jup, stellar_wind=stellar_wind)
         if magnetic_moment.normalize_standoff_dist(planet) < 1:
-            magnetic_moment.standoff_dist = planet.unnormalize_radius()
+            magnetic_moment.magnetosphere_radius = planet.unnormalize_radius()
             log.info("Magnetosphere radius lower than 1.")
 
         if not config_param.rc_dyn :
-            dyn_region.mag_field_equatorial = magnetic_moment.mag_moment * mag_moment_jup.mag_moment/np.power(planet.unnormalize_radius(),3)
+            dyn_region.mag_field_equatorial = magnetic_moment.mag_moment * mag_moment_jup.mag_moment * 1e-7 /np.power(planet.unnormalize_radius(),3)
             dyn_region.mag_field_dynamo = dyn_region.mag_field_equatorial * 2 * np.sqrt(2)
             
         target_emission = Emission(
@@ -291,9 +284,10 @@ for target in data.itertuples():
             planet.radius,
             planet.luminosity,
             planet.stardist,
-            target.semi_major_axis,
-            planet.rotrate,
+            planet.semi_major_axis,
+            planet.rotperiod * 24.0,
             planet.orbitperiod,
+            planet.tidally_locked,
             star.main_id,
             star.mass,
             star.radius,
@@ -315,18 +309,21 @@ for target in data.itertuples():
             stellar_wind.effective_velocity,
             stellar_wind.velocity_sw,
             stellar_wind.corona_temperature,
-            stellar_wind.mag_field,
+            stellar_wind.radial_mag_field,
+            stellar_wind.azimuthal_mag_field,
+            stellar_wind.total_mag_field,
+            stellar_wind.perp_mag_field,
             stellar_wind.distance_alfven_point,
             stellar_wind.alfven_velocity,
             target_emission._mag_field_planet,
             target_emission._freq_c_max_planet / 1e6,
             target_emission._freq_p_planet / 1e6,
-            target_emission._pow_emission_kinetic / 1e14,
-            target_emission._pow_emission_magnetic / 1e14,
-            target_emission._pow_emission_spi / 1e14,
-            target_emission.flux_kinetic_au / 1e-26 / 1e10,
-            target_emission.flux_magnetic_au / 1e-26 / 1e10,
-            target_emission.flux_spi_au / 1e-26 / 1e10,
+            target_emission._pow_emission_kinetic,
+            target_emission._pow_emission_magnetic,
+            target_emission._pow_emission_spi,
+            target_emission.flux_kinetic_au / 1e-26,
+            target_emission.flux_magnetic_au / 1e-26,
+            target_emission.flux_spi_au / 1e-26,
             target_emission._flux_received_kinetic* 1e3/ 1e-26,
             target_emission._flux_received_magnetic* 1e3/ 1e-26,
             target_emission._flux_received_spi* 1e3/ 1e-26,
@@ -340,8 +337,6 @@ for target in data.itertuples():
         skipped_targets.write(target.pl_name + ' : semi-major axis, planetary mass or star mass unknown.\n')
     # if mytarget.select_target():
     # selected_targets.append(mytarget)
-print(sun)
-print(sw_jup)
 
 skipped_targets.close()
 #df_target = pd.concat([df_target]+new_columns, axis=1)
@@ -353,7 +348,8 @@ df_target = pd.DataFrame(new_rows,columns=config_param.output_params)
 os.system('cp skipped_targets.txt '+config_param.output_path +'/'+dateofrun+'/skipped_targets.txt')
 os.system('rm skipped_targets.txt')
 
-data.to_csv(config_param.output_path +"/"+dateofrun+"/catalog_input.csv", sep=";", index=False)
+
+#data.to_csv(config_param.output_path +"/"+dateofrun+"/catalog_input.csv", sep=",", index=False)
 df_target.to_csv(config_param.output_path +"/"+dateofrun+"/main_output.csv", sep=";", index=False)
 
 # Sorting values by power of emission and by frequency

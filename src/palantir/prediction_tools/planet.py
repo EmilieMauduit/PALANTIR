@@ -9,7 +9,7 @@ Created on Fri Dec  3 09:53:23 2021
 
 import pandas as pd
 import numpy as np
-from math import pow
+from math import pow, sqrt
 from typing import List
 from scipy.interpolate import interp1d
 from importlib_resources import files
@@ -27,12 +27,13 @@ class Planet:
         name: str,
         mass: float,
         radius: dict,
+        semi_major_axis : float,
         distance: float,
         eccentricity: float,
-        worb: dict,
+        Torb: dict,
         luminosity: dict,
         detection_method: str = None,
-        wrot: float = None,
+        Trot: float = None,
     ):
         """Define a planet object. Every parameter must be normalized at Jupiter.
         :param name:
@@ -46,6 +47,10 @@ class Planet:
         :param radius:
             Radius of the planet, expected to be normalized to Jupiter's.
         :type radius:
+            float
+        :param semi_major_axis:
+            The semi-major axis of the planet orbit, in AU.
+        :type semi_major_axis:
             float
         :param distance:
             Distance between the planet and its host star, in AU.
@@ -76,12 +81,16 @@ class Planet:
         self.name = name
         self.mass = mass
         self.radius = radius
-        self.stardist = distance
+        self.semi_major_axis = semi_major_axis
         self.eccentricity = eccentricity
-        self.orbitperiod = worb
-        self.rotrate = wrot
+        self.stardist = distance
+        self.orbitperiod = Torb
+        self.rotperiod = Trot
         self.detection_method = detection_method
         self.luminosity = luminosity
+        self.tidally_locked = None
+        self._orbitrate = None
+        self._rotrate = None
     
     def __str__(self):
         return("Name : " + self.name + "\n"
@@ -115,15 +124,17 @@ class Planet:
 
     @orbitperiod.setter
     def orbitperiod(self, value: dict):
+        """Computes the orbital period of the planet, in days."""
         star_mass = value["star_mass"]
-        orbitperiod = value["worb"]
+        orbitperiod = value["Torb"]
         dua = 1.49597870700e11  # m
-        wJ = 1.77e-4  # s-1
+        wJ = 1.68e-8  # rad.s-1
         if np.isnan(orbitperiod):
-            d = self.stardist * dua
-            G = 6.6725985e-11
+            d = self.semi_major_axis * dua 
+            G = 6.6725985e-11 
             MS = 1.989e30
-            self._orbitperiod = pow(star_mass * MS * G / pow(d, 3), 1 / 2.0) / wJ
+            T = 2 * np.pi * sqrt(pow(d, 3) / (star_mass * MS * G )) #secondes
+            self._orbitperiod =  T / (24 * 3600)
         else:
             self._orbitperiod = orbitperiod
 
@@ -144,6 +155,22 @@ class Planet:
         else:
             self._luminosity = luminosity
 
+    @property
+    def orbitrate(self):
+        """Computes the orbital pulsation of the planet, with respect to Jupiter's."""
+        if self._orbitrate is None :
+            worbJ = 1.68e-8  # rad.s-1
+            self._orbitrate = (2 * np.pi / (self.orbitperiod * 24 * 3600 )) / worbJ
+        return self._orbitrate
+    
+    @property
+    def rotrate(self):
+        """Computes the rotation pulsation of the planet, with respect to Jupiter's."""
+        if self._rotrate is None : 
+            wrotJ = 1.77e-4  # rad.s-1
+            self._rotrate = (2 * np.pi / (self.rotperiod * 24 * 3600)) / wrotJ
+        return self._rotrate
+        
     def unnormalize_mass(self):
         mass_jup = 1.8986e27  # kg
         mass = self.mass * mass_jup
@@ -154,13 +181,13 @@ class Planet:
         radius = self.radius * radius_jup
         return radius
 
-    def unnormalize_orbital_period(self):
-        worb_jup = 1.77e-4  # s-1
-        worb = self.orbitperiod * worb_jup
+    def unnormalize_orbital_rate(self):
+        worb_jup = 1.68e-8  # rad.s-1
+        worb = self.orbitrate * worb_jup
         return worb
 
     def unnormalize_rotrate(self):
-        wrot_jup = 1.77e-4  # s-1
+        wrot_jup = 1.77e-4  # rad.s-1
         wrot = self.rotrate * wrot_jup
         return wrot
 
@@ -186,9 +213,9 @@ class Planet:
         
         B = (1 + (self.eccentricity**2) / 2) ** 2 if not np.isnan(self.eccentricity) else 1.
         
-        d = self.stardist * 1.49597870700e11
+        a = self.semi_major_axis * 1.49597870700e11
         Teq = pow(
-            (1 - A) * luminosity * LS / (16 * np.pi * (d**2) * sigmaSB * B), 1.0 / 4
+            (1 - A) * luminosity * LS / (16 * np.pi * (a**2) * sigmaSB * B), 1.0 / 4
         )
 
         ##expansion factor depending on Teq
@@ -221,12 +248,12 @@ class Planet:
         sigmaSB = 5.670374419e-8
 
         B = (1 + (self.eccentricity**2) / 2) ** 2
-        d = self.stardist * 1.49597870700e11
+        a = self.semi_major_axis * 1.49597870700e11
 
         T0 = ct1 * pow(self.mass, ct2)
         gamma = 1.15 + 0.05 * pow(cg1 / self.mass, cg2)
         Teq = pow(
-            (1 - A) * luminosity * LS / (16 * np.pi * (d**2) * sigmaSB * B), 1.0 / 4
+            (1 - A) * luminosity * LS / (16 * np.pi * (a**2) * sigmaSB * B), 1.0 / 4
         )
         Rp = self._radius
         self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
@@ -246,15 +273,17 @@ class Planet:
                 float
         """
 
-        wrot_J = 1.77e-4  # s-1
+        wrot_J = 1.77e-4  # rad.s-1
         d = self.stardist
         dsync = self._calculate_synchro_dist(
-            self.rotrate * wrot_J, Qpp, age, self.mass, self.radius, star_mass
+            wrot_J, Qpp, age, self.mass, self.radius, star_mass
         )
         if d <= dsync:
-            self.rotrate = self.orbitperiod
+            self.rotperiod = self._orbitperiod
+            self.tidally_locked = True
         else:
-            self.rotrate = self.rotrate
+            self.rotperiod = (2 * np.pi / wrot_J) / 86400 # days
+            self.tidally_locked = False
 
     @staticmethod
     def _calculate_radius(
@@ -384,7 +413,7 @@ class Planet:
     ):
         """Compute the distance at which a planet should be so that its orbit is synchronised, depending on the age of the system.
         :param wrot:
-            orbital period
+            Planetary rotation rate
         :type wrot:
             float
         :param Qp:
