@@ -12,6 +12,13 @@ Created on Fri Dec  3 10:09:06 2021
 import pandas as pd
 from astroquery.simbad import Simbad
 from importlib_resources import files
+import numpy as np
+import astropy.units as u
+import pyvo
+from astropy.coordinates import SkyCoord
+from astroquery.vizier import Vizier
+import time
+
 
 import logging
 logger = logging.getLogger('palantir.prediction_tools.target_selection')
@@ -71,15 +78,15 @@ class Config:
         self.output_path = config.value[27]
         self.output_params = ["name","ra","dec","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance", "semi_major_axis",
             "planet_rotation_period", "planet_orbital_period","tidally_locked","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
-            "star_magfield","star_rotperiod","star_luminosity","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
+            "star_magfield","star_rotperiod","star_luminosity","star_Xray_flux","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
             "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","magnetosphere_radius","sw_density","sw_effective_velocity","sw_velocity",
             "coronal_temperature","sw_radial_magfield_planet","sw_azimuthal_magfield_planet","sw_total_magfield_planet","sw_perp_magfield_planet",
             "distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
             "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
             "flux_spi_au", "flux_received_kinetic","flux_received_magnetic", "flux_received_spi",
             "fc_max_star", "fp_star"]
-        self.output_params_units = ["","hh:mm:ss", "dd:mm:ss", "MJ", "RJ", "LS", "AU", "AU","hr","days","","", "MS", "RS", "yr", "pc", "T", "days",
-            "LS", "", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
+        self.output_params_units = ["","deg", "deg", "MJ", "RJ", "LS", "AU", "AU","hr","days","","", "MS", "RS", "yr", "pc", "T", "days",
+            "LS", "erg.cm-2.s-1","", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
             "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz"]
         logger.info('Configuration parameters succesfully initialized.')
 
@@ -144,6 +151,161 @@ class Config:
         logger.info("Path given to store the outputs : {}".format(self.output_path))
 
 
+# ============================================================= #
+# ------------------- ROSAT Catalog queries ------------------- #
+# ============================================================= #
+
+class XRayFluxCalculator:
+    def __init__(self, catalog="IX/30", radius=10*u.arcsec):
+        """
+        Instanciate a calculator to avoid multiple/repetitive queries to the Vizier database.
+
+        :param catalog:
+            Name of the catalog to load from Vizier. Default is the ROSAT catalog for X-ray measurements: "IX/30"
+        :type catalog:
+            str
+        :param radius:
+            The radius of acceptance for a match. Default is 10 arcsec
+        :type radius:
+            :class::`~a`stropy.Quantity
+        """
+        self.catalog_name = catalog
+        self.catalogue_ivoid = f"ivo://CDS.VizieR/{self.catalog_name}"
+        self.voresource = pyvo.registry.search(ivoid=self.catalogue_ivoid)[0]
+        self.url = self.voresource.reference_url
+        self.tables = self.voresource.get_tables()
+        self.radius = radius
+        self.vizier_table = None
+        self._load_catalog()
+    
+    def _load_catalog(self):
+        """Load the ROSAT catalog once."""
+
+        query_columns = f"""
+                SELECT RAJ2000, DEJ2000, Crate, HR1
+                FROM "{list(self.tables.keys())[0]}"
+                """
+        
+        tap_service = self.voresource.get_service("tap")
+        query_result = tap_service.search(query_columns)
+        if query_result:
+            self.vizier_table = query_result
+            logger.info(f"ROSAT catalog loaded with {len(self.vizier_table)} stars.")
+        else:
+            logger.info("No data found in the ROSAT catalog.")
+            self.vizier_table = None
+    
+    def _find_closest_star(self, target_coord, max_radius=None):
+        """
+        Find the closest star in the catalog from given coordinates.
+
+        :param target_coord:
+            The target coordinates.
+        :type target_coord:
+            :class:`~astropy.coordinates.SkyCoord`
+        :param max_radius:
+            The maximum radius (in arcsec), to look around the target.
+        :type max_radius:
+            :class:`~astropy.Quantity`, optional
+
+        :returns:
+            A tuple with the index of the match found in the catalog and the distance from the target.
+        :rtype:
+            Tuple[float,float]
+        """
+        if self.vizier_table is None or len(self.vizier_table) == 0:
+            return None, None
+
+        catalog_coords = SkyCoord(ra=self.vizier_table.getcolumn(name='RAJ2000').data, 
+                                dec=self.vizier_table.getcolumn(name='DEJ2000').data, 
+                                unit=(u.deg, u.deg), 
+                                frame='icrs')
+
+        separations = target_coord.separation(catalog_coords)
+
+        search_radius = max_radius if max_radius is not None else self.radius
+        mask = separations <= search_radius
+        
+        if not np.any(mask):
+            return None, None
+
+        closest_idx = np.argmin(separations)
+        min_distance = separations[closest_idx]
+        
+        return closest_idx, min_distance
+    
+    def compute_xray_flux_from_coords(self, target_coord, star_name=None):
+        """
+        Computes the XRay flux of a star by using a previously loaded ROSAT catalog from Vizier, but using coordinates and not make a query to the server.
+
+        :param target_coord:
+            The coordinates of the target.
+        :type target_coord:
+            :class:`~astropy.coordinates.SkyCoord`
+        :param star_name:
+            The name of the star, only used for logging purposes. Default is None.
+        :type star_name:
+            str
+
+        :returns:
+            XRay flux in erg.cm-2.s-1, or np.nan if no match is found.
+        :rtype:
+            float
+        """
+        closest_idx, distance = self._find_closest_star(target_coord)
+        
+        if closest_idx is None:
+            name_info = f" ({star_name})" if star_name else ""
+            logger.debug(f"No star found for {target_coord.ra.value:.6f}, {target_coord.dec.value:.6f}{name_info}")
+            return np.nan
+
+        HR1 = self.vizier_table.getcolumn(name='HR1').data[closest_idx]
+        Counts = self.vizier_table.getcolumn(name='Crate').data[closest_idx]
+
+        ECF_rosat = (5.30 * HR1 + 8.7) * 1e-12  # erg.cm-2.counts-1
+        Xray_flux = ECF_rosat * Counts  # erg.cm-2.s-1
+
+        name_info = f" ({star_name})" if star_name else ""
+        logger.debug(f"Flux X-ray found for {target_coord.ra.value:.6f}, {target_coord.dec.value:.6f}{name_info}: distance={distance.arcsec:.2f}arcsec, flux={Xray_flux:.2e} erg.cm-2.s-1")
+        
+        return Xray_flux
+    
+    def compute_xray_flux_from_name(self, star_name):
+        """
+        Computes the XRay flux of a star by making a query with its name to Vizier on the ROSAT catalog.
+
+        :param star_name:
+            The name of the star, preferably its main ID on SIMBAD.
+        :type star_name:
+            str
+
+        :returns:
+            XRay flux in erg.cm-2.s-1, or np.nan if no match is found.
+        :rtype:
+            float
+        """
+        vizier = Vizier(columns=["HR1", "Crate", "_r", "RAJ2000", "DEJ2000"])
+        query_result = vizier.query_object(star_name, 
+                                        radius=self.radius,
+                                        catalog=self.catalog)
+        
+        time.sleep(1) 
+        
+        if not query_result:
+            logger.debug(f"No match found in ROSAT catalog for star: {star_name}")
+            return np.nan
+        
+        table = query_result
+        if ('HR1' and 'Crate') in table.keys():
+            imin = np.argmin(table["_r"])
+            HR1 = table['HR1'][imin]
+            ECF_rosat = (5.30 * HR1 + 8.7) * 1e-12
+            Counts = table['Crate'][imin]
+            Xray_flux = ECF_rosat * Counts
+            return Xray_flux
+        else:
+            logger.debug(f"Columns HR1/Crate not found for {star_name}")
+            return np.nan
 
 # ============================================================= #
 # ------------------------- Prediction ------------------------ #

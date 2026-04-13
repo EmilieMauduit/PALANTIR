@@ -10,6 +10,10 @@ from math import pow
 import numpy as np
 from typing import List
 from astroquery.simbad import Simbad
+import astropy.units as u
+from astropy.coordinates import SkyCoord
+
+from palantir.prediction_tools import XRayFluxCalculator
 
 import logging
 log = logging.getLogger('palantir.prediction_tools.star')
@@ -55,11 +59,13 @@ def TOUT(mass: float):
 class Star:
     def __init__(self, 
         name: str,
+        coordinates : SkyCoord,
         mass: float, 
         radius: dict, 
         age: float, 
         obs_dist: float, 
-        sp_type : str, 
+        sp_type : str,
+        Xray_calculator : XRayFluxCalculator
     ):
 
         """Creates a Star object.
@@ -91,13 +97,14 @@ class Star:
 
         self.name = name
         self.main_id = name
+        self.coordinates = coordinates
         self.mass = mass
         self.radius = radius
         self.age = age * 1e9
         self.luminosity = mass
         self.obs_dist = obs_dist
         self.sp_type = sp_type
-        self.Xray_flux = np.nan
+        self.Xray_flux = Xray_calculator
         self._sp_type_code = None
         self._rotperiod = None
         self.effective_temperature = None
@@ -133,7 +140,6 @@ class Star:
                 self._main_id = query_id['MAIN_ID'][0]
             else :
                 self._main_id = value
-
 
     @property
     def radius(self):
@@ -184,6 +190,15 @@ class Star:
         if self._sp_type_code is None :
             self._sp_type_code = self._decode_sp_type(self.sp_type)
         return self._sp_type_code
+
+    @property
+    def Xray_flux(self):
+        return self._Xray_flux
+    
+    @Xray_flux.setter
+    def Xray_flux(self, value : XRayFluxCalculator):
+        self._Xray_flux = value.compute_xray_flux_from_coords(self.coordinates)
+
 
     def unnormalize_mass(self) -> float:
         MS = 1.989e30  # kg

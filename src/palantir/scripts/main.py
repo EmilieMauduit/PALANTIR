@@ -12,9 +12,12 @@ Created on Fri Dec  3 10:09:06 2021
 import os
 import pandas as pd
 import numpy as np
+import html
 import datetime
 import palantir
 from importlib_resources import files
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 
 from palantir.prediction_tools.star import Star
 from palantir.prediction_tools.planet import Planet
@@ -22,7 +25,7 @@ from palantir.prediction_tools.dynamo_region import DynamoRegion
 from palantir.prediction_tools.magnetic_moment import MagneticMoment
 from palantir.prediction_tools.stellar_wind import StellarWind
 from palantir.prediction_tools.emission import Emission
-from palantir.prediction_tools.target_selection import Config
+from palantir.prediction_tools.target_selection import Config, XRayFluxCalculator
 
 import logging
 log = logging.getLogger('palantir.scripts.main')
@@ -65,6 +68,8 @@ palantir.setup_logging(log_filepath=config_param.output_path + '/' + dateofrun +
 log.info('This run was made with version {} of PALANTIR.'.format(palantir.__version__))
 config_param.log_current_run_parameters()
 
+Xray_calculator = XRayFluxCalculator()
+
 # --------------------------------------------------------- #
 # ---------------------- Data input ----------------------- #
 # --------------------------------------------------------- #
@@ -88,10 +93,12 @@ os.system('cp ' + str(maps_dir / dict_data[config_param.database]) + ' ' + confi
 sun = Star(
     name="Sun",
     mass=1.0,
+    coordinates= SkyCoord(ra=286.123*u.deg, dec=63.87*u.deg, frame='icrs'),
     radius={"models": config_param.star_radius_models, "radius": 1.0},
     age=AS,
     obs_dist=1.0,
     sp_type ='GV',
+    Xray_calculator=Xray_calculator,
     )
 jupiter  = Planet(
     name="Jupiter",
@@ -177,13 +184,16 @@ for target in data.itertuples():
             detection_method=target.detection_type,
             Trot=jupiter.rotperiod,
         )
+
         star = Star(
-            name=target.star_name,
+            name=html.unescape(target.star_name),
+            coordinates = SkyCoord(ra=target.ra*u.deg, dec=target.dec*u.deg, frame='icrs'),
             mass=target.star_mass,
             radius={"models": config_param.star_radius_models, "radius": target.star_radius},
             age=star_age,
             obs_dist=target.star_distance,
             sp_type = config_param.retrieve_spectral_type(star_name = target.star_name,sp_type = str(target.star_sp_type)),
+            Xray_calculator=Xray_calculator,
             )
 
         if np.isnan(target.radius) and config_param.radius_expansion :
@@ -234,7 +244,7 @@ for target in data.itertuples():
 
         try:
             stellar_wind = StellarWind.from_system(star=star, planet=planet)
-        except ValueError:
+        except (ValueError, RuntimeError):
             log.info("Divergence in stellar wind calculation")
             skipped_targets.write(target.pl_name + ' : divergence in stellar wind calculation\n')
             continue
@@ -296,6 +306,7 @@ for target in data.itertuples():
             star.magfield,
             star.rotperiod,
             star.luminosity,
+            star.Xray_flux,
             star.sp_type,
             star.sp_type_code,
             star.effective_temperature,

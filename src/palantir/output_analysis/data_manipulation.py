@@ -19,6 +19,7 @@ import astropy.units as u
 from typing import List
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import matplotlib.ticker as ticker
 
 import logging
 log = logging.getLogger('palantir.output_analysis.data_manipulation')
@@ -99,6 +100,7 @@ class DataManipulation:
                 'star_magfield' : ['$B_*$', '[T]'],
                 'star_rotperiod' : ['$\omega_{rot,*}$', '[days]'],
                 'star_luminosity' : ['$L_*$', '[$L_S$]'],
+                'star_Xray_flux' : ["$F_X$", "[$erg.cm^{-2}.s^{-1}$]"],
                 'spectral_type' : ['Spectral type', '[]'],
                 'spectral_type_code' : ['Spectral type code', '[]'],
                 'star_effective_temp' : ['$T_{eff,*}$', '[K]'], 
@@ -313,9 +315,9 @@ class DataManipulation:
             ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
-                marker='^', 
-                color='gray',
-                alpha=0.8)
+                marker='+', 
+                color='grey',
+                alpha=1)
             
         if instruments is not None :
             for name,sensitivity in sensitivity_dict.items():
@@ -334,9 +336,13 @@ class DataManipulation:
         ax.set_ylim(ymin,ymax)
         ax.set_xscale('log')
         ax.set_yscale('log')
+        #ax.yaxis.set_major_locator(ticker.LogLocator(base=10))
+        #ax.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs=range(2,10)))
+        #ax.yaxis.set_minor_formatter(ticker.LogFormatter())
         ax.set_title(kwargs.get('title',""))
+        #ax.grid(True,which="both")
         plt.grid()
-        plt.legend(fontsize=12, ncol = 1)
+        plt.legend(fontsize=12, ncol = 1, loc = kwargs.get("legend_loc", "best"))
         plt.tight_layout()
 
         figname = kwargs.get("figname","")
@@ -510,6 +516,8 @@ class DataManipulation:
 
         ax.set_xlabel(kwargs.get('xlabel', self.dict_axis_label[xfield][0] + " " + self.dict_axis_label[xfield][1]), fontsize=18)
         ax.set_ylabel('Count', fontsize=18)
+        ax.set_xscale(kwargs.get('xscale','linear'))
+        ax.set_yscale(kwargs.get('yscale','linear'))
         ax.tick_params(axis='both',labelsize=14)
         ax.set_title(kwargs.get('title',""))
         plt.grid()

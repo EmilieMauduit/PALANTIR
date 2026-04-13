@@ -481,7 +481,7 @@ class StellarWind:
 
     @staticmethod
     def _calc_temperature(M : float, P : float, Fx : float) -> float :
-        """Compute the coronal temperature from 'Johnstone & Güdel, AA, 2015.
+        """Compute the coronal temperature from 'Johnstone & Güdel, AA, 2015'.
             Gives Tcor in K.
         
         :param M:
@@ -490,7 +490,7 @@ class StellarWind:
             float
 
         :param P:
-            Stellar rotation period in Psun
+            Stellar rotation period.
         :type P:
             float
 
@@ -501,7 +501,7 @@ class StellarWind:
         """
 
         Psun = 25.5
-        if not np.isnan(Fx):
+        if not np.isnan(Fx) :
             Tcor = 0.11 * np.power(Fx,0.26)
         elif (not np.isnan(P)) and (not np.isnan(M)) :
             Tcor = 1.77 * np.power(M,-0.42) * np.power(P/Psun,0.52)
