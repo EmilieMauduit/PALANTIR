@@ -311,8 +311,8 @@ class DataManipulation:
             ax.scatter(frequencies_to_plot[super_alfvenic_eff & super_alfvenic_sw], flux_to_plot[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
 
         elif test_escaping:
-            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
-            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='black', label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='grey', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
                 marker='+', 
@@ -555,8 +555,8 @@ class DataManipulation:
         if (flux_min_mJy is None) :
             flux_min_mJy = np.min(sensitivities[1,:])
 
-        mask_MS = (data_base_filtered['fc_max_planet'].astype(float) >= fc_min_MHz) & (data_base_filtered['flux_received_magnetic'].astype(float) >= flux_min_mJy)
-        mask_SPI = (data_base_filtered['fc_max_star'].astype(float) >= fc_min_MHz) & (data_base_filtered['flux_received_spi'].astype(float) >= flux_min_mJy)
+        mask_MS = (data_base_filtered['fc_max_planet'].astype(float) >= fc_range_MHz[0]) & (data_base_filtered['flux_received_magnetic'].astype(float) >= flux_min_mJy)
+        mask_SPI = (data_base_filtered['fc_max_star'].astype(float) >= fc_range_MHz[0]) & (data_base_filtered['flux_received_spi'].astype(float) >= flux_min_mJy)
         if declination_range is not None :
             mask_observable = (data_base_filtered['dec'].astype(float) >= declination_range[0]) & (data_base_filtered['dec'].astype(float) <= declination_range[1])
         else :

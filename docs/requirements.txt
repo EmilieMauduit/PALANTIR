@@ -1,0 +1,16 @@
+astropy
+h5py
+matplotlib
+numpy
+pytest
+scikit-image
+scipy
+tqdm
+pandas
+pyvo
+astroquery
+docutils
+sphinx-rtd-theme
+recommonmark
+sphinx_copybutton
+git+https://github.com/EmilieMauduit/PALANTIR
