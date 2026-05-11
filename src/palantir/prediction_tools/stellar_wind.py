@@ -20,12 +20,24 @@ logger = logging.getLogger('palantir.prediction_tools.stellar_wind')
 
 
 class StellarWind:
-    def __init__(self, ne: float, v : float, ve: float, Tcor: float, Bsw: dict):
+    def __init__(self, 
+            ne_planet: float, 
+            ne_star : float, 
+            v : float, 
+            ve: float, 
+            Tcor: float, 
+            Bsw: dict
+        
+        ):
         """Creates a stellar wind object.
 
-        :param ne:
-            Electron density in the stellar wind, in m-3.
-        :type ne:
+        :param ne_planet:
+            Electron density in the stellar wind, in m-3. At the distance of the planet from the star.
+        :type ne_planet:
+            float
+        :param ne_star:
+            Electron density in the stellar wind, in m-3. At the surface of the star.
+        :type ne_star:
             float
         :param ve:
             Effective velocity of the stellar wind, in m.s-1.
@@ -41,7 +53,8 @@ class StellarWind:
             float
         """
 
-        self.density = ne
+        self.density_planet = ne_planet
+        self.density_star = ne_star
         self.velocity_sw = v
         self.effective_velocity = ve
         self.corona_temperature = Tcor
@@ -174,9 +187,9 @@ class StellarWind:
             Planet
         """
 
-        v, veff, ne, T = cls._Parker(star=star, distance=planet.stardist, eccentricity=planet.eccentricity)
+        v, veff, ne_planet, ne_star, T = cls._Parker(star=star, distance=planet.stardist, eccentricity=planet.eccentricity)
 
-        return cls(ne, v, veff, T, Bsw={"planet": planet, "star": star, "vsw" : v, "eccentricity" : planet.eccentricity})
+        return cls(ne_planet, ne_star, v, veff, T, Bsw={"planet": planet, "star": star, "vsw" : v, "eccentricity" : planet.eccentricity})
 
     # --------------------------------------------------------- #
     # -------------------- Static methods --------------------- #
@@ -253,6 +266,8 @@ class StellarWind:
         else :
             Br_ini = magfield_surf * pow(R_star/(d_alfven_point * dua), 3)
             Br = Br_ini * pow(d_alfven_point/d, 2)
+        # dist = d * dua / Rstar
+        # Br = magfield_surf * (1 + ((f-1)/pow(dist, 1.5))) / (f * pow(dist,2))
         
         return Br
     @staticmethod
@@ -688,11 +703,12 @@ class StellarWind:
 
         veff = sqrt((v**2) + (vorb**2))
         Mls = StellarWind._mass_lossrate(t, star.radius)
-        n = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
-        if n <= 0:
+        ne_planet = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
+        ne_star = Mls / (4* np.pi * v * mp)
+        if (ne_planet <= 0) or (ne_star <= 0):
             logger.error("Negative stellar wind density is not physical.")
             raise ValueError("Negative or null stellar wind density is not physical.")
-        return (v, veff, n, T)
+        return (v, veff, ne_planet, ne_star, T)
 
     @staticmethod
     def _CME(star: Star, planet: Planet):

@@ -84,10 +84,10 @@ class Config:
             "distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
             "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
             "flux_spi_au", "flux_received_kinetic","flux_received_magnetic", "flux_received_spi",
-            "fc_max_star", "fp_star"]
+            "fc_max_star", "fp_star", "tau_free_free_magnetic","tau_free_free_spi"]
         self.output_params_units = ["","deg", "deg", "MJ", "RJ", "LS", "AU", "AU","hr","days","","", "MS", "RS", "yr", "pc", "T", "days",
             "LS", "erg.cm-2.s-1","", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
-            "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz"]
+            "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz", "", ""]
         logger.info('Configuration parameters succesfully initialized.')
 
         

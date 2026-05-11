@@ -273,6 +273,8 @@ for target in data.itertuples():
                 "sw_jupiter": sw_jup,
             },
             flux_received={"star": star, "stellar_wind" : stellar_wind},
+            free_free_spi={"star": star, "stellar_wind" : stellar_wind},
+            free_free_ms={"star": star, "stellar_wind" : stellar_wind, "planet":planet},
             fcmax_star={"star": star},
             fp_planet={"ne" : stellar_wind.density},
             fp_star={"ne" : stellar_wind.density * ((planet.stardist * dua / star.unnormalize_radius()) ** 2)}
@@ -340,6 +342,8 @@ for target in data.itertuples():
             target_emission._flux_received_spi* 1e3/ 1e-26,
             target_emission.freq_c_max_star/ 1e6,
             target_emission.freq_p_star/ 1e6,
+            target_emission.tau_free_free_magnetic,
+            target_emission.tau_free_free_spi
         ]#, index = config_param.output_params)
         )
         i+=1
