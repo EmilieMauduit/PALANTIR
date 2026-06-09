@@ -95,10 +95,10 @@ class DataManipulation:
                 'star_simbad_id' : ['Simbad ID', '[]'],
                 'star_mass' : ['$M_*$', '[$M_S$]'], 
                 'star_radius' : ['$R_*$', '[$R_S$]'],
-                'star_age' : ['t_*', '[yr]'], 
+                'star_age' : ['$t_*$', '[yr]'], 
                 'earth_distance' : ['s', '[pc]'],
                 'star_magfield' : ['$B_*$', '[T]'],
-                'star_rotperiod' : ['$\omega_{rot,*}$', '[days]'],
+                'star_rotperiod' : ['$P_{rot,*}$', '[days]'],
                 'star_luminosity' : ['$L_*$', '[$L_S$]'],
                 'star_Xray_flux' : ["$F_X$", "[$erg.cm^{-2}.s^{-1}$]"],
                 'spectral_type' : ['Spectral type', '[]'],
@@ -133,7 +133,13 @@ class DataManipulation:
                 'flux_received_magnetic' : ['$\Phi_{mag}$', '[mJy]'], 
                 'flux_received_spi' : ['$\Phi_{SPI}$', '[mJy]'], 
                 'fc_max_star' : ['$f_{c,*}^{max}$', '[MHz]'],
-                'fp_star' : ['$f_{p,*}$', '[MHz]']
+                'fp_star' : ['$f_{p,*}$', '[MHz]'],
+                "distance_escaping_spi" : ['$R_*^{escaping}$', ['$R_{sun}$']], 
+                "density_escaping_spi" : ['$n_e^{escaping}$', '[$m^{-3}$]'], 
+                "fc_star_escaping_spi" : ['$f_{c,*}^{escaping}$', '[MHz]'], 
+                "fp_star_escaping_spi" : ['$f_{p,*}^{escaping}$', '[MHz]'],
+                'tau_free_free_ms' : [r"$\tau_{free-free}^{MS}$", ''],
+                'tau_free_free_spi' : [r"$\tau_{free-free}^{SPI}$", ''],
             }
             self._dict_axis_label = dict_axis_label
         return self._dict_axis_label
@@ -197,6 +203,7 @@ class DataManipulation:
     def plot_frequency_flux(self,
             interaction : str = 'MS',
             instruments : List[str] = None,
+            test_absorption : bool = False,
             test_alfven_velocity : bool = False,
             test_escaping : bool = False,
             **kwargs) :
@@ -217,9 +224,19 @@ class DataManipulation:
         :type instruments:
             List[str]
 
+        :param test_absorption:
+            A parameter to apply free-free absorption coefficients to the fluxes. Default is False.
+        :type test_absorption:
+            bool
+
         :param test_alfven_velocity:
             A parameter to distinguish, or not, points where the velocity of the emission is superior or inferior to the alfven velocity.
         :type test_alfven_velocity:
+            bool
+
+        :param test_escaping:
+            A parameter to distinguish, or not, points where the emission can escape the plasma.
+        :type test_escaping:
             bool
         """
 
@@ -264,6 +281,9 @@ class DataManipulation:
             frequencies_to_plot = np.array(self.data_base['fc_max_planet'][1:],dtype='float')
             xlabel = '$f_{c,p}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{MS}$  [mJy]'
 
+            if test_absorption :
+                tau_free_free = np.array(self.data_base['tau_free_free_ms'][1:],dtype=float)[~np.isnan(flux_to_plot)]
+
             if test_escaping :
                 fp_planet = np.array(self.data_base['fp_planet'][1:][~np.isnan(flux_to_plot)],dtype='float')
                 fc_planet = frequencies_to_plot[~np.isnan(flux_to_plot)]
@@ -275,6 +295,9 @@ class DataManipulation:
             flux_to_plot = np.array(self.data_base['flux_received_spi'][1:],dtype='float')
             frequencies_to_plot = np.array(self.data_base['fc_max_star'][1:],dtype='float')
             xlabel = '$f_{c,*}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{SPI}$  [mJy]'
+
+            if test_absorption :
+                tau_free_free = np.array(self.data_base['tau_free_free_spi'][1:],dtype=float)[~np.isnan(flux_to_plot)]
 
             if test_escaping :
                 fp_star = np.array(self.data_base['fp_star'][1:][~np.isnan(flux_to_plot)],dtype='float')
@@ -298,9 +321,14 @@ class DataManipulation:
         frequencies_to_plot = frequencies_to_plot[~np.isnan(flux_to_plot)]
         flux_to_plot = flux_to_plot[~np.isnan(flux_to_plot)]
 
+        if test_absorption :
+            flux_to_plot = flux_to_plot * np.exp(-tau_free_free)
+
         xmin = kwargs.get('xmin',0.8*np.min(frequencies_to_plot)) ; xmax = kwargs.get('xmax',1.2*np.max(frequencies_to_plot))
         ymin = kwargs.get('ymin',0.8*np.min(flux_to_plot)) ; ymax = kwargs.get('ymax',1.2*np.max(flux_to_plot))
         print(len(frequencies_to_plot))
+        print("Freq min : {} MHz, freq max : {} MHz".format(np.min(frequencies_to_plot),np.max(frequencies_to_plot)))
+        print("Flux min : {} mJy, flux max : {} mJy".format(np.min(flux_to_plot),np.max(flux_to_plot)))
 
         fig = plt.figure(figsize=(10,7))
         ax = fig.add_subplot(111)
@@ -311,8 +339,8 @@ class DataManipulation:
             ax.scatter(frequencies_to_plot[super_alfvenic_eff & super_alfvenic_sw], flux_to_plot[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
 
         elif test_escaping:
-            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='black', label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
-            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='grey', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
                 marker='+', 
@@ -413,7 +441,7 @@ class DataManipulation:
             im = ax.scatter(xdata[~np.isnan(zdata)],ydata[~np.isnan(zdata)], 
                 c=zdata[~np.isnan(zdata)], marker='o', cmap = 'viridis',
                 vmin = kwargs.get("zmin", 0.9 * np.min(zdata[~np.isnan(zdata)])),
-                vmax = kwargs.get("zmax", 1.1 * np.max(zdata[~np.isnan(zdata)])))
+                vmax = kwargs.get("zmax", 1.1 * np.max(zdata[~np.isnan(zdata)])),alpha=0.7)
             cax = inset_axes(
                     ax,
                     width='3%',
@@ -450,6 +478,7 @@ class DataManipulation:
 
     def plot_simple_histogram_parameters(self,
         xfield : str,
+        scale : str = "linear",
         **kwargs) -> None : 
         
         """This functions allows to do a simple histogram any parameter. 
@@ -507,7 +536,13 @@ class DataManipulation:
         fig = plt.figure(figsize=(10,7))
         ax = fig.add_subplot(111)
 
-        ax.hist(np.array(self.data_base[xfield][1:],dtype='float'), 
+        data = np.array(self.data_base[xfield][1:],dtype='float')
+        mask_inf = ~np.isinf(data)
+        mask_nan = ~np.isnan(data)
+        print("Min : {}, Max : {}".format(np.min(data[mask_inf&mask_nan]), np.max(data[mask_inf&mask_nan])))
+        print("Arg min : {}, arg max : {}".format(np.argmin(data),np.argmax(data)))
+        data_to_plot = np.log10(data[mask_inf&mask_nan]) if scale == "log" else data[mask_inf&mask_nan]
+        ax.hist(data_to_plot, 
                 bins = kwargs.get('bins',25),
                 color = kwargs.get('color','tab:blue'),
                 range = kwargs.get('range',),

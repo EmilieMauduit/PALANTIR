@@ -13,10 +13,10 @@ from astroquery.simbad import Simbad
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
-from palantir.prediction_tools import XRayFluxCalculator
+from palantir.prediction_tools import XRayFluxCalculator, XRayFluxCalculatorNEXXUS
 
 import logging
-log = logging.getLogger('palantir.prediction_tools.star')
+logger = logging.getLogger('palantir.prediction_tools.star')
 
 # --------------------------------------------------------- #
 # ------------ Useful functions for the class ------------- #
@@ -59,13 +59,16 @@ def TOUT(mass: float):
 class Star:
     def __init__(self, 
         name: str,
+        main_id : str,
         coordinates : SkyCoord,
         mass: float, 
         radius: dict, 
-        age: float, 
+        age: float,
+        Teff :float,
+        rot_period : dict,
         obs_dist: float, 
         sp_type : str,
-        Xray_calculator : XRayFluxCalculator
+        Xray_calculator : XRayFluxCalculatorNEXXUS
     ):
 
         """Creates a Star object.
@@ -96,18 +99,19 @@ class Star:
         """
 
         self.name = name
-        self.main_id = name
+        self.main_id = main_id
         self.coordinates = coordinates
         self.mass = mass
         self.radius = radius
         self.age = age * 1e9
         self.luminosity = mass
+        self.effective_temperature = Teff
         self.obs_dist = obs_dist
         self.sp_type = sp_type
         self.Xray_flux = Xray_calculator
         self._sp_type_code = None
-        self._rotperiod = None
-        self.effective_temperature = None
+        self.rotperiod = rot_period
+        
         self.magfield = None
 
     
@@ -127,21 +131,6 @@ class Star:
     # ------------------------ Methods ------------------------ #
 
     @property
-    def main_id(self):
-        return self._main_id
-    
-    @main_id.setter
-    def main_id(self, value:str):
-        if value  == 'Sun' :
-            self._main_id = value
-        else :
-            query_id = Simbad.query_object(value)
-            if query_id is not None :
-                self._main_id = query_id['MAIN_ID'][0]
-            else :
-                self._main_id = value
-
-    @property
     def radius(self):
         return self._radius
 
@@ -156,9 +145,27 @@ class Star:
 
     @property
     def rotperiod(self):
-        if self._rotperiod is None :
-            self._rotperiod = self._compute_rotperiod(age=self.age)
         return self._rotperiod
+    @rotperiod.setter
+    def rotperiod(self, value :dict):
+        if not np.isnan(value["vsini"]) :
+            self._rotperiod = 2 * np.pi * self.unnormalize_radius() / ( 86400 * np.sqrt(4/3) * value['vsini'] * 1e3)
+
+        elif (not np.isnan(value['flux_B']) and not np.isnan(value['flux_V'])) and ((value['flux_B']-value['flux_V']) > 0.4): #Barnes 2007
+            self._rotperiod = 0.775 * np.power((value['flux_B'] - value['flux_V']) - 0.4,0.6) * np.power(self.age / 1e6,0.52)
+
+        elif self._effective_temperature < 5000 : #Kounkel 2023
+            T_eff = np.log10(self._effective_temperature) ; t_star = np.log10(self.age)
+            a0 = -1926.1822 ; a1 = 1352.6072 ; a2 = -299.8859 ; a3 = 21.2112
+            b0 = 139.5928 ; b1 = -76.1140 ; b2 = 10.3335
+
+            L_log = a0 + a1*T_eff + a2*(T_eff**2) + a3*(T_eff**3) + b0*t_star + b1*t_star*T_eff + b2*t_star*(T_eff**2)
+            P = 4 * np.pi *  self.unnormalize_mass() * (self.unnormalize_radius()**2) / (5 * (10**L_log))
+            self._rotperiod = P / 86400
+
+        else : 
+            self._rotperiod = self._compute_rotperiod(self.age)
+
     
     @property
     def luminosity(self):
@@ -186,6 +193,18 @@ class Star:
         self._luminosity = res1 / res2
 
     @property
+    def effective_temperature(self):
+        return self._effective_temperature
+    @effective_temperature.setter
+    def effective_temperature(self, value):
+        if np.isnan(value) :
+            LS = 3.826e26  # W
+            sigma_sb = 5.670374e-8 # W.m-2.K-4
+            self._effective_temperature = np.power(self.luminosity*LS/(4*np.pi*sigma_sb* (self.unnormalize_radius()**2)),1/4)
+        else :
+            self._effective_temperature = value
+
+    @property
     def sp_type_code(self):
         if self._sp_type_code is None :
             self._sp_type_code = self._decode_sp_type(self.sp_type)
@@ -196,8 +215,9 @@ class Star:
         return self._Xray_flux
     
     @Xray_flux.setter
-    def Xray_flux(self, value : XRayFluxCalculator):
-        self._Xray_flux = value.compute_xray_flux_from_coords(self.coordinates)
+    def Xray_flux(self, value : XRayFluxCalculatorNEXXUS):
+        LX = value.compute_xray_flux_from_coords(self.coordinates)
+        self._Xray_flux = LX / (4*np.pi*np.power(self.unnormalize_radius()*1e2,2))
 
 
     def unnormalize_mass(self) -> float:
@@ -219,26 +239,17 @@ class Star:
         pc = 3.08568e16  # m
         return self.obs_dist * pc
 
-    def compute_effective_temperature(self, value):
-        """ Effective temperature of the star, computed with the Stefan-Boltzman law."""
-        Teff = value
-        LS = 3.826e26  # W
-        sigma_sb = 5.670374e-8 # W.m-2.K-4
-        if self.effective_temperature is None :
-            if np.isnan(Teff) :
-                self.effective_temperature = np.power(self.luminosity*LS/(4*np.pi*sigma_sb* (self.unnormalize_radius()**2)),1/4)
-            else :
-                self.effective_temperature = Teff
-
-
     def compute_magnetic_field(self, value :dict):
         model = ['Bstar_original'] if (self.mass > 1.6) else value['model']
         mag_field = value['mag_field']
         if self.magfield is None :
             if np.isnan(mag_field):
                 if len(model) > 1 :
-                    log.error('ValueError:Two models were selected for computing stellar magnetic field, only one can be chosen.')
+                    logger.error('ValueError:Two models were selected for computing stellar magnetic field, only one can be chosen.')
                     raise ValueError('Two models were selected for computing stellar magnetic field, only one can be chosen.')
+                elif len(model) == 0 :
+                    logger.error("ValueError : Values for stellar magnetic fields are from catalog only, no models were selected.")
+                    raise ValueError('Values for stellar magnetic fields are from catalog only, no models were selected.')
                 else :
                     self.magfield = self._compute_magfield(model = model[0], 
                                         rotperiod = self.rotperiod, 

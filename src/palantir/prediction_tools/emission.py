@@ -9,6 +9,8 @@ Created on Fri Dec  3 14:02:05 2021
 from math import pow
 import numpy as np
 
+from palantir.prediction_tools import Planet, Star, StellarWind
+
 import logging
 log = logging.getLogger('palantir.prediction_tools.emission')
 
@@ -58,10 +60,11 @@ class Emission:
 
         self.name = name
         self.mag_field_planet = planetary_magnetic_field
-        self._freq_c_max_planet = None
-        self.freq_c_max_star = fcmax_star
         self.freq_p_planet = fp_planet
         self.freq_p_star = fp_star
+        self._freq_c_max_planet = None
+        self.freq_c_max_star = fcmax_star
+        self.test_escaping_spi = fcmax_star
         self.pow_emission_kinetic = pow_emission
         self.pow_emission_magnetic = pow_emission
         self.pow_emission_spi = pow_emission
@@ -72,7 +75,7 @@ class Emission:
         self.flux_received_magnetic = flux_received
         self.flux_received_spi = flux_received
         self.tau_free_free_spi = free_free_spi
-        self.tau_free_free_magnetic = free_free_ms
+        self.tau_free_free_ms = free_free_ms
 
 
     def __str__(self):
@@ -118,27 +121,6 @@ class Emission:
     #=============== Frequencies ===============#
 
     @property
-    def freq_c_max_planet(self):
-        if self._freq_c_max_planet is None:
-            me = 9.1093897e-31  # kg
-            e = 1.60217733e-19  # C
-            self._freq_c_max_planet = e * self.mag_field_planet / (2 * np.pi * me)
-        return self._freq_c_max_planet
-
-    @property
-    def freq_c_max_star(self):
-        return self._freq_c_max_star
-
-    @freq_c_max_star.setter
-    def freq_c_max_star(self, value: dict):
-        if "star" not in value:
-            log.error('KeyError : star not in value')
-            raise KeyError("star not in value")
-        me = 9.1093897e-31  # kg
-        e = 1.60217733e-19  # C
-        self._freq_c_max_star = e * value["star"].magfield / (2 * np.pi * me)
-
-    @property
     def freq_p_planet(self):
         return self._freq_p_planet
 
@@ -165,6 +147,67 @@ class Emission:
         q = 1.60217733e-19  # C
         epsilon0 = 8.85e-12
         self._freq_p_star = np.sqrt((q**2) * value["ne"] /( epsilon0 * me))/ (2 * np.pi)
+
+    @property
+    def freq_c_max_planet(self):
+        if self._freq_c_max_planet is None:
+            me = 9.1093897e-31  # kg
+            e = 1.60217733e-19  # C
+            self._freq_c_max_planet = e * self.mag_field_planet / (2 * np.pi * me)
+        return self._freq_c_max_planet
+
+    @property
+    def freq_c_max_star(self):
+        return self._freq_c_max_star
+
+    @freq_c_max_star.setter
+    def freq_c_max_star(self, value: dict):
+        if ("star" not in value)  or ("planet" not in value) or ("stellar_wind" not in value):
+            log.error('KeyError : star or planet or stellar_wind not in value')
+            raise KeyError("star or planet or stellar_wind not in value")
+        me = 9.1093897e-31  # kg
+        e = 1.60217733e-19  # C
+        self._freq_c_max_star = e * value["star"].magfield / (2 * np.pi * me)
+
+    @property
+    def test_escaping_spi(self):
+        return self._test_escaping_spi
+    @test_escaping_spi.setter
+    def test_escaping_spi(self, value:dict):
+        dua = 1.49597870700e11  # m
+        if (10*self.freq_p_star > self.freq_c_max_star) :
+            fc, fp, r, ne_sw = self.find_escaping_freq_spi(value["star"],value["planet"], value["stellar_wind"].distance_alfven_point, value["T_corona"])
+            if np.isnan(fc):
+                r = value["star"].unnormalize_radius() / dua
+                ne_sw = value['stellar_wind'].density_star
+                fc = self.freq_c_max_star
+                fp = self.freq_p_planet
+
+        else :
+            r = value["star"].unnormalize_radius() / dua
+            ne_sw = value['stellar_wind'].density_star
+            fc = self.freq_c_max_star
+            fp = self.freq_p_planet
+
+        self._test_escaping_spi = {"radius" : r, "density" : ne_sw, "fc_star" : fc, "fp_star" : fp}
+
+    @staticmethod
+    def find_escaping_freq_spi(star : Star, planet : Planet, d_alfven_point : float, T_corona : float):
+        radii = np.logspace(np.log10(0.01),np.log10(planet.stardist),60,endpoint=True)
+        me = 9.1093897e-31  # kg
+        e = 1.60217733e-19  # C
+        epsilon0 = 8.85e-12
+        for r in radii :
+            try :
+                vsw, veff, ne_sw , ne_star = StellarWind._Parker(star=star, distance=r, eccentricity=planet.eccentricity, T=T_corona)
+                mag_field = StellarWind._calc_B_total(r,star, vsw, d_alfven_point)
+                fp = np.sqrt((e**2) * ne_sw /( epsilon0 * me))/ (2 * np.pi)
+                fc = e * mag_field / (2 * np.pi * me)
+                if fc > 10*fp :
+                    return fc, fp, r, ne_sw
+            except ValueError :
+                continue
+        return np.nan, np.nan, np.nan, np.nan
 
     #=============== Powers emitted ===============#
 
@@ -201,7 +244,7 @@ class Emission:
                 ),
                 2,
             )
-            * (value["stellar_wind"].density / density_jup)
+            * (value["stellar_wind"].density_planet / density_jup)
             * pow(value["stellar_wind"].effective_velocity / veff_jup, 3)
         )
 
@@ -365,21 +408,22 @@ class Emission:
             raise KeyError("star or stellar_wind not in value")
         star = value["star"]
         stellar_wind = value["stellar_wind"]
-        self._tau_free_free_spi = 111 * pow(star.rotperiod, -0.5) * (stellar_wind.density_star**2) * (star.unnormalize_radius())/ ((self.freq_c_max_star**2) * star.unnormalize_mass())
+        dua = 1.49597870700e11  # m
+
+        self._tau_free_free_spi = 111 * pow(stellar_wind.corona_temperature, -0.5) * (self.test_escaping_spi["density"]**2) * pow(self.test_escaping_spi['radius'] * dua,2)/ ((self.test_escaping_spi['fc_star']**2) * star.unnormalize_mass())
 
     @property
-    def tau_free_free_magnetic(self):
-        return self._tau_free_free_magnetic
+    def tau_free_free_ms(self):
+        return self._tau_free_free_ms
     
-    @tau_free_free_magnetic.setter
-    def tau_free_free_magnetic(self, value:dict):
+    @tau_free_free_ms.setter
+    def tau_free_free_ms(self, value:dict):
         dua = 1.49597870700e11  # m
         if ("planet" not in value) or "stellar_wind" not in value:
-            log.error("KeyError: star or stellar_wind not in value.")
-            raise KeyError("star or stellar_wind not in value")
+            log.error("KeyError: planet or stellar_wind not in value.")
+            raise KeyError("planet or stellar_wind not in value")
         planet = value["planet"]
-        star = value["star"]
         stellar_wind = value["stellar_wind"]
-        self._tau_free_free_magnetic = 1.8e-12 * pow(star.rotperiod, -3.5) * (stellar_wind.density_planet**2) * (planet.stardist *dua)/ (self.freq_c_max_planet**2)
+        self._tau_free_free_ms = 1.8e-12 * pow(stellar_wind.corona_temperature, -3.5) * (stellar_wind.density_planet**2) * (planet.stardist *dua)/ (self.freq_c_max_planet**2)
 
 

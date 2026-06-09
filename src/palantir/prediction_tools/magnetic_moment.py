@@ -120,18 +120,12 @@ class MagneticMoment:
                     M.append(self._Reiners_Christensen(planet, jup, dyn_region=dynamo, dynamo_jup = dynamo_jup))
                 else:
                     log.warning("Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0.")
-                    print(
-                        "Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0."
-                    )
                     M.append(np.nan)
             if model == "rein-chris-dyn":
                 if planet.mass >= 0.17:
                     M.append(self._Reiners_Christensen(planet, jup, dyn_region=dynamo,dynamo_jup = dynamo_jup))
                 else:
                     log.warning("Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0.")
-                    print(
-                        "Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0."
-                    )
                     M.append(np.nan)
 
         if Mmean and not Mmax:
@@ -158,8 +152,8 @@ class MagneticMoment:
         mu0 = 4e-7 * np.pi # kg.m.A-2.s-2
         f0 = 1.16
 
-        P_ram_sw = mp * stellar_wind.density * (stellar_wind.effective_velocity ** 2)
-        P_th_sw = 2 * stellar_wind.density * kb * stellar_wind.corona_temperature
+        P_ram_sw = mp * stellar_wind.density_planet * (stellar_wind.effective_velocity ** 2)
+        P_th_sw = 2 * stellar_wind.density_planet * kb * stellar_wind.corona_temperature
         P_mag_imf = (stellar_wind.perp_mag_field **2) / ( 2 * mu0)
 
         standoff_dist = pow(((f0**2)*mu0 * (self.unormalize_magnetic_moment(other)**2))/(4 * (np.pi**2) * (P_ram_sw + P_th_sw + P_mag_imf)), 1/6)
