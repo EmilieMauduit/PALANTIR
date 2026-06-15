@@ -9,7 +9,6 @@ Created on Fri Nov  15 10:09:06 2024
 # --------------------------------------------------------- #
 # ------------------------ Imports ------------------------ #
 
-from cgi import test
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -206,6 +205,7 @@ class DataManipulation:
             test_absorption : bool = False,
             test_alfven_velocity : bool = False,
             test_escaping : bool = False,
+            conversion_factor : float = None,
             **kwargs) :
         """ 
         This method allows to produce plots of predicted flux vs maximum cyclotron frequency. 
@@ -323,6 +323,8 @@ class DataManipulation:
 
         if test_absorption :
             flux_to_plot = flux_to_plot * np.exp(-tau_free_free)
+        if conversion_factor is not None :
+            flux_to_plot = flux_to_plot * conversion_factor
 
         xmin = kwargs.get('xmin',0.8*np.min(frequencies_to_plot)) ; xmax = kwargs.get('xmax',1.2*np.max(frequencies_to_plot))
         ymin = kwargs.get('ymin',0.8*np.min(flux_to_plot)) ; ymax = kwargs.get('ymax',1.2*np.max(flux_to_plot))
@@ -330,17 +332,16 @@ class DataManipulation:
         print("Freq min : {} MHz, freq max : {} MHz".format(np.min(frequencies_to_plot),np.max(frequencies_to_plot)))
         print("Flux min : {} mJy, flux max : {} mJy".format(np.min(flux_to_plot),np.max(flux_to_plot)))
 
-        fig = plt.figure(figsize=(10,7))
+        fig = plt.figure(figsize=kwargs.get('figsize',(10,7)))
         ax = fig.add_subplot(111)
 
         if test_alfven_velocity :
-            ax.scatter(frequencies_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', label='$v_{SW}$ and $v_{SW,eff}$ < $v_A$', alpha=0.6)
-            ax.scatter(frequencies_to_plot[super_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', label='$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
-            ax.scatter(frequencies_to_plot[super_alfvenic_eff & super_alfvenic_sw], flux_to_plot[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
-
+            ax.scatter(frequencies_to_plot[super_alfvenic_eff & super_alfvenic_sw], flux_to_plot[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', alpha=0.6, label='Super-Alfvénic') #$v_{SW}$ and $v_{SW,eff}$ > $v_A$')
+            ax.scatter(frequencies_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', alpha=0.6, label= 'Sub-Alfvénic')#'$v_{SW}$ and $v_{SW,eff}$ < $v_A$')
+            ax.scatter(frequencies_to_plot[super_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', alpha=0.6, label='Sub/Super-Alfvénic')#'$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$')
         elif test_escaping:
-            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$", alpha=0.6)
-            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", alpha=0.6)
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', alpha=0.6, label='Emission unlikely')#"$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$")
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', alpha=0.6, label='Emission likely')#"$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$")
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
                 marker='+', 
@@ -354,11 +355,11 @@ class DataManipulation:
                 else :
                     ax.plot(sensitivity[0,:],sensitivity[1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name)
             
-        ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='ionospheric cut-off')
+        ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='Ionospheric cut-off')
         rect = plt.Rectangle((xmin,ymin),10-xmin,ymax-ymin,facecolor='black',alpha=0.1)
         ax.add_patch(rect)
-        ax.set_xlabel(xlabel, fontsize=18)
-        ax.set_ylabel(ylabel, fontsize=18)
+        ax.set_xlabel(kwargs.get("xlabel", xlabel), fontsize=18)
+        ax.set_ylabel(kwargs.get("ylabel", ylabel), fontsize=18)
         ax.tick_params(axis='both',labelsize=14)
         ax.set_xlim(xmin,xmax)
         ax.set_ylim(ymin,ymax)
@@ -367,7 +368,7 @@ class DataManipulation:
         #ax.yaxis.set_major_locator(ticker.LogLocator(base=10))
         #ax.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs=range(2,10)))
         #ax.yaxis.set_minor_formatter(ticker.LogFormatter())
-        ax.set_title(kwargs.get('title',""))
+        ax.set_title(kwargs.get('title',""), fontsize=18)
         #ax.grid(True,which="both")
         plt.grid()
         plt.legend(fontsize=12, ncol = 1, loc = kwargs.get("legend_loc", "best"))
@@ -427,9 +428,9 @@ class DataManipulation:
         if z is None :
             xdata = xdata[~np.isnan(ydata)] ; ydata = ydata[~np.isnan(ydata)]
             if test_alfven_velocity :
-                ax.scatter(xdata[sub_alfvenic_eff & sub_alfvenic_sw], ydata[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', label='$v_{SW}$ and $v_{SW,eff}$ < $v_A$', alpha=0.6)
-                ax.scatter(xdata[super_alfvenic_eff & sub_alfvenic_sw], ydata[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', label='$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
-                ax.scatter(xdata[super_alfvenic_eff & super_alfvenic_sw], ydata[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', label='$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
+                ax.scatter(xdata[super_alfvenic_eff & super_alfvenic_sw], ydata[super_alfvenic_eff & super_alfvenic_sw], marker ='^', color='tab:purple', alpha=0.6, label='Super-Alfvénic')#'$v_{SW}$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
+                ax.scatter(xdata[sub_alfvenic_eff & sub_alfvenic_sw], ydata[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', alpha=0.6, label='Sub-Alfvénic')#'$v_{SW}$ and $v_{SW,eff}$ < $v_A$')
+                ax.scatter(xdata[super_alfvenic_eff & sub_alfvenic_sw], ydata[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', alpha=0.6, label='Sub/Super-Alfvénic')#'$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$', alpha=0.6)
                 ax.legend(fontsize=12)
             else :
                 ax.scatter(xdata[~np.isnan(ydata)],ydata[~np.isnan(ydata)], 

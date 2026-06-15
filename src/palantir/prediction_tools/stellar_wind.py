@@ -201,7 +201,7 @@ class StellarWind:
                 Br = Br
             )
             
-            res1 = (Br**2 + B_phi**2) / (2*mu0)
+            res1 = (Br**2 + B_phi**2) / mu0
             res2 = ne_planet * (v**2) * mp
             return np.abs((res1 - res2)/max(res1,res2))
         
@@ -477,7 +477,7 @@ class StellarWind:
         if not np.isnan(Fx) :
             Tcor = 0.11 * np.power(Fx,0.26)
         elif (not np.isnan(P)) and (not np.isnan(M)) :
-            Tcor = 1.77 * np.power(M,-0.42) * np.power(P/Psun,0.52)
+            Tcor = 1.77 * np.power(M,-0.42) * np.power(Psun/P,0.52)
         elif not np.isnan(M) :
             Tcor = 1.77 * np.power(M,0.6)
         else :

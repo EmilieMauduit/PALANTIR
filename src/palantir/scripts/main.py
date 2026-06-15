@@ -147,7 +147,7 @@ try :
         if (
             not np.isnan(target.semi_major_axis)
             and (not np.isnan(target.mass) or not np.isnan(target.mass_sini))
-            and not np.isnan(target.star_mass)
+            and (not np.isnan(target.star_mass))
         ):
 
             if np.isnan(target.mass):
