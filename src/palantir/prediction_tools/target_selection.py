@@ -20,7 +20,6 @@ from astropy.coordinates import SkyCoord
 from astroquery.vizier import Vizier
 import time
 
-
 import logging
 logger = logging.getLogger('palantir.prediction_tools.target_selection')
 
@@ -62,33 +61,44 @@ class Config:
             raise ValueError('Only one database can be used, two were given in the configuration file')
         else :
             self.database = database[0]
+
+        maps_dir_Bstar = files("magfieldprediction.data_files")
+        parcat = pd.read_csv(maps_dir_Bstar / "stellar_param_catalog.csv", sep=";")
+        parcat["perrot_s"] = parcat["diameter_km"]/(2*np.abs(parcat["vsini_kms"]))
+        self.Bstar_database = parcat[["Bestim_G","Mass_Msun","perrot_s","Age_Gyr","Teff_K","diameter_km","V_mag"]].copy()
+
+        self.custom_simbad = Simbad()
+        self.custom_simbad.add_votable_fields('sp_type')
+        self.custom_simbad.add_votable_fields("B")
+        self.custom_simbad.add_votable_fields("V")
+        self.custom_simbad.add_votable_fields("mesrot")
+        self.custom_simbad.add_votable_fields("mesvar")
+        
         self.magnetic_moment_models = [config.setting[i] for i in range(3,10) if int(config.value[i]) == 1]
         self.dynamo_density_models = [config.setting[i] for i in range(10, 12) if int(config.value[i]) == 1]
         self.planet_radius_models = [config.setting[i] for i in range(13, 15) if int(config.value[i]) == 1]
         self.star_radius_models = [config.setting[i] for i in range(16, 18) if int(config.value[i]) == 1]
-        self.planet_luminosity_models = [
-            config.setting[i] for i in range(18, 21) if int(config.value[i]) == 1
-        ]
-        self.star_magfield_models = [config.setting[i] for i in range(22, 25) if int(config.value[i]) == 1]
-        self.star_magfield_catalog_only = True if (int(config.value[25]) == 1) else False
+        self.planet_luminosity_models = [config.setting[i] for i in range(18, 21) if int(config.value[i]) == 1]
+        self.star_magfield_models = [config.setting[i] for i in range(22, 27) if int(config.value[i]) == 1]
+        
         self.rho_crit = int(config.value[12])
         self.rc_dyn = True if int(config.value[6]) == 1 else False
         self.radius_expansion = True if int(config.value[15]) == 1 else False
         self.sp_type_code = int(config.value[21])
-        self.talk = True if int(config.value[26]) == 1 else False
-        self.output_path = config.value[27]
+        self.talk = True if int(config.value[27]) == 1 else False
+        self.output_path = config.value[28]
         self.output_params = ["name","ra","dec","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance", "semi_major_axis",
             "planet_rotation_period", "planet_orbital_period","tidally_locked","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
             "star_magfield","star_rotperiod","star_luminosity","star_Xray_flux","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
             "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","magnetosphere_radius","sw_density","sw_effective_velocity","sw_velocity",
-            "coronal_temperature","sw_radial_magfield_planet","sw_azimuthal_magfield_planet","sw_total_magfield_planet","sw_perp_magfield_planet",
+            "mass_loss_rate","coronal_temperature","sw_radial_magfield_planet","sw_azimuthal_magfield_planet","sw_total_magfield_planet","sw_perp_magfield_planet",
             "distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
             "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
             "flux_spi_au", "flux_received_kinetic","flux_received_magnetic", "flux_received_spi",
-            "fc_max_star", "fp_star","distance_escaping_spi", "density_escaping_spi", "fc_star_escaping_spi", "fp_star_escaping_spi", "tau_free_free_ms","tau_free_free_spi"]
+            "fc_max_star", "fp_star","distance_escaping_spi", "density_escaping_spi", "fc_star_escaping_spi", "fp_star_escaping_spi", "tau_free_free_ms","tau_free_free_spi", "flag"]
         self.output_params_units = ["","deg", "deg", "MJ", "RJ", "LS", "AU", "AU","hr","days","","", "MS", "RS", "yr", "pc", "T", "days",
-            "LS", "erg.cm-2.s-1","", "","K", "rho_dyn_J", "r_dyn_J", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
-            "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz","AU", "m-3", "MHz", "MHz", "", ""]
+            "LS", "erg.cm-2.s-1","", "","K", "g.cm-3", "Rp", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1","kg.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
+            "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz","AU", "m-3", "MHz", "MHz", "", "", ""]
         logger.info('Configuration parameters succesfully initialized.')
 
         
@@ -121,16 +131,8 @@ class Config:
 
     def query_simbad_star_param(self,star_name,sp_type, star_alternate_names):
     # Configure Simbad to display the spectral type
-        custom_simbad = Simbad()
-        custom_simbad.add_votable_fields('sptype')
-        custom_simbad.add_votable_fields("flux(B)")
-        custom_simbad.add_votable_fields("flux(V)")
-        custom_simbad.add_votable_fields("rot")
-        custom_simbad.add_votable_fields("v*")
-
         # Query Simbad for the star
-
-        result_table = custom_simbad.query_object(star_name)
+        result_table = self.custom_simbad.query_object(star_name)
 
         # Check if the result is not empty and contains the spectral type
 
@@ -138,20 +140,20 @@ class Config:
 
         i=0
         while (result_table is None) and (i < imax) :
-            result_table = custom_simbad.query_object(star_alternate_names[i])
+            result_table = self.custom_simbad.query_object(star_alternate_names[i])
             i += 1
 
-        if result_table is None :
+        if (result_table is None) or (len(result_table) == 0) :
             return {"main_id" : star_name, "sp_type" : sp_type ,"period" : np.nan, "vsini" : np.nan, "flux_B" : np.nan, "flux_V" : np.nan}
-        
-        main_id = star_name if np.ma.is_masked(result_table["MAIN_ID"][0]) else str(result_table["MAIN_ID"][0])
-        spectral_type = sp_type if (np.ma.is_masked(result_table['SP_TYPE'][0]) or (sp_type != "nan")) else str(result_table["SP_TYPE"][0])
-        period = np.nan if (np.ma.is_masked(result_table["V__period"][0]) or result_table["V__period"][0] == 0) else float(result_table["V__period"][0])
-        v_sini = np.nan if (np.ma.is_masked(result_table['ROT_Vsini'][0]) or result_table["ROT_Vsini"][0] == 0) else float(result_table["ROT_Vsini"][0])
-        flux_B = np.nan if (np.ma.is_masked(result_table["FLUX_B"][0]) or result_table["FLUX_B"][0] == 0) else float(result_table["FLUX_B"][0])
-        flux_V = np.nan if (np.ma.is_masked(result_table["FLUX_V"][0]) or result_table["FLUX_V"][0] == 0) else float(result_table["FLUX_V"][0])
 
-        return {"main_id" : main_id, "sp_type" : spectral_type,"period": period, "vsini" : v_sini, "flux_B" : flux_B, "flux_V" : flux_V}
+        main_id = star_name if (np.ma.is_masked(result_table["main_id"][0])) else str(result_table["main_id"][0])
+        spectral_type = sp_type if (np.ma.is_masked(result_table['sp_type'][0]) or (sp_type != "nan")) else str(result_table["sp_type"][0])
+        period = np.nan if (np.ma.is_masked(result_table["mesvar.period"][0]) or result_table["mesvar.period"][0] == 0) else float(result_table["mesvar.period"][0])
+        v_sini = np.nan if (np.ma.is_masked(result_table['mesrot.vsini'][0]) or result_table["mesrot.vsini"][0] == 0) else float(result_table["mesrot.vsini"][0])
+        flux_B = np.nan if (np.ma.is_masked(result_table["B"][0]) or result_table["B"][0] == 0) else float(result_table["B"][0])
+        flux_V = np.nan if (np.ma.is_masked(result_table["V"][0]) or result_table["V"][0] == 0) else float(result_table["V"][0])
+
+        return {"main_id" : main_id, "sp_type" : spectral_type,"period": period, "vsini" : np.abs(v_sini), "flux_B" : flux_B, "flux_V" : flux_V}
 
     def log_current_run_parameters(self):
         logger.info("Database used for this run : {}".format(self.database))
@@ -164,9 +166,41 @@ class Config:
         logger.info("Tables used for planetary apparent luminosity : {}".format(self.planet_luminosity_models))
         logger.info("Star spectral type criterion : {}".format(self.sp_type_code))
         logger.info("Models used for stellar magnetic field prediction : {}".format(self.star_magfield_models))
-        logger.info("Were stellar magnetic_field based only on catalog ? {}".format(self.star_magfield_catalog_only))
         logger.info("Path given to store the outputs : {}".format(self.output_path))
 
+# ========================================================= #
+# ---------------------- FlagTracker ---------------------- #
+# ========================================================= #
+
+class FlagTracker:
+    """Tracks the approximations made at each step of the prediction process, with a flag in bits."""
+    
+    def __init__(self, nmax_hypothesis=10):
+        self.nb_hypothesis = nmax_hypothesis
+        self.flags = 0  # All bits set to zero initially
+    
+    def activate(self, hypothesis_number : int):
+        """Activate the bit corresponding to the given step (0-indexed)."""
+        if not 0 <= hypothesis_number < self.nb_hypothesis:
+            raise ValueError(f"Hypothesis {hypothesis_number} invalid (must be between 0 and {self.nb_hypothesis - 1})")
+        self.flags |= (1 << hypothesis_number)
+    
+    def is_active(self, hypothesis_number: int) -> bool:
+        """Returns True if this hypotyhesis was used."""
+        return bool(self.flags & (1 << hypothesis_number))
+    
+    def reset(self):
+        """Re-initializes all flags to zero."""
+        self.flags = 0
+    
+    def get_flags_binary(self) -> str:
+        """Gives the binary representation of the flags."""
+        return f"{self.flags:0{self.nb_hypothesis}b}"
+    
+    def summarize(self):
+        """Returns the list of all hypothesis that were used."""
+        return [i for i in range(self.nb_hypothesis) if self.is_active(i)]
+    
 
 # ============================================================= #
 # ------------------- ROSAT Catalog queries ------------------- #

@@ -106,6 +106,27 @@ class Planet:
     # ------------------------ Methods ------------------------ #
 
     @property
+    def mass(self):
+        return self._mass
+    @mass.setter
+    def mass(self, value : dict ) :
+        mass = value["mass"]
+        mass_sini = value["mass_sini"]
+        radius = value["radius"]
+        if not np.isnan(mass):
+            self._mass = mass
+        elif np.isnan(mass) and not np.isnan(mass_sini) :
+            self._mass = mass_sini * np.sqrt(4 / 3.0)
+        elif np.isnan(mass) and not np.isnan(radius) :
+            coeffs_5 = [ 0.24242637 , 0.15857685, -0.96018866, -0.73854275,  2.01599226, -0.14323226]
+            mass_pred = 0
+            for i,c in enumerate(coeffs_5[::-1]):
+                mass_pred += c*np.power(np.log10(radius),i)
+            self._mass = 10**mass_pred
+        elif np.isnan(mass) and np.isnan(radius) :
+            self._mass = 1.
+
+    @property
     def radius(self):
         return self._radius
 
@@ -128,7 +149,6 @@ class Planet:
         star_mass = value["star_mass"]
         orbitperiod = value["Torb"]
         dua = 1.49597870700e11  # m
-        wJ = 1.68e-8  # rad.s-1
         if np.isnan(orbitperiod):
             d = self.semi_major_axis * dua 
             G = 6.6725985e-11 

@@ -8,6 +8,7 @@ Created on Fri Dec  3 14:02:05 2021
 
 from math import pow
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
 
 from palantir.prediction_tools import Planet, Star, StellarWind
 
@@ -176,7 +177,16 @@ class Emission:
     def test_escaping_spi(self, value:dict):
         dua = 1.49597870700e11  # m
         if (10*self.freq_p_star > self.freq_c_max_star) :
-            fc, fp, r, ne_sw = self.find_escaping_freq_spi(value["star"],value["planet"], value["stellar_wind"].distance_alfven_point, value["T_corona"])
+            fc, fp, r, ne_sw = self.find_escaping_freq_spi(
+                star = value["star"],
+                planet = value["planet"], 
+                d_alfven_point=value["stellar_wind"].distance_alfven_point, 
+                T_corona=value["T_corona"],
+                dist_ramp=value["parker_grid"].dist_ramp,
+                mass_ramp=value["parker_grid"].mass_ramp,
+                tcor_ramp=value['parker_grid'].tcor_ramp,
+                interpolation=value['parker_grid'].interpolation_function_parker
+                )
             if np.isnan(fc):
                 r = value["star"].unnormalize_radius() / dua
                 ne_sw = value['stellar_wind'].density_star
@@ -192,20 +202,36 @@ class Emission:
         self._test_escaping_spi = {"radius" : r, "density" : ne_sw, "fc_star" : fc, "fp_star" : fp}
 
     @staticmethod
-    def find_escaping_freq_spi(star : Star, planet : Planet, d_alfven_point : float, T_corona : float):
+    def find_escaping_freq_spi(
+            star : Star, 
+            planet : Planet, 
+            d_alfven_point : float, 
+            T_corona : float,
+            dist_ramp : np.ndarray,
+            mass_ramp : np.ndarray,
+            tcor_ramp : np.ndarray,
+            interpolation : RegularGridInterpolator
+            ):
         radii = np.logspace(np.log10(0.01),np.log10(planet.stardist),60,endpoint=True)
         me = 9.1093897e-31  # kg
         e = 1.60217733e-19  # C
         epsilon0 = 8.85e-12
         for r in radii :
             try :
-                vsw, veff, ne_sw , ne_star = StellarWind._Parker(star=star, distance=r, eccentricity=planet.eccentricity, T=T_corona)
+                vsw, veff, ne_sw , ne_star, Mls = StellarWind._Parker_interpolation_grid(
+                                                    star=star, 
+                                                    distance=r, 
+                                                    T=T_corona,
+                                                    dist_ramp=dist_ramp,
+                                                    mass_ramp=mass_ramp,
+                                                    tcor_ramp = tcor_ramp,
+                                                    interpolation=interpolation)
                 mag_field = StellarWind._calc_B_total(r,star, vsw, d_alfven_point)
                 fp = np.sqrt((e**2) * ne_sw /( epsilon0 * me))/ (2 * np.pi)
                 fc = e * mag_field / (2 * np.pi * me)
                 if fc > 10*fp :
                     return fc, fp, r, ne_sw
-            except ValueError :
+            except (ValueError,RuntimeError) :
                 continue
         return np.nan, np.nan, np.nan, np.nan
 

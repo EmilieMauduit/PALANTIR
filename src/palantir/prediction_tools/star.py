@@ -8,12 +8,16 @@ Created on Fri Dec  3 14:02:05 2021
 
 from math import pow
 import numpy as np
+import pandas as pd
 from typing import List
 from astroquery.simbad import Simbad
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
 from palantir.prediction_tools import XRayFluxCalculator, XRayFluxCalculatorNEXXUS
+import os
+os.environ["KERAS_BACKEND"] = "tensorflow"
+from magfieldprediction.functions import KNNpred, NNpred, limpar
 
 import logging
 logger = logging.getLogger('palantir.prediction_tools.star')
@@ -68,7 +72,8 @@ class Star:
         rot_period : dict,
         obs_dist: float, 
         sp_type : str,
-        Xray_calculator : XRayFluxCalculatorNEXXUS
+        Xray_calculator : XRayFluxCalculatorNEXXUS,
+        magnetic_field : dict,
     ):
 
         """Creates a Star object.
@@ -104,15 +109,14 @@ class Star:
         self.mass = mass
         self.radius = radius
         self.age = age * 1e9
-        self.luminosity = mass
+        self._luminosity = None
         self.effective_temperature = Teff
         self.obs_dist = obs_dist
         self.sp_type = sp_type
         self.Xray_flux = Xray_calculator
         self._sp_type_code = None
         self.rotperiod = rot_period
-        
-        self.magfield = None
+        self.magfield = magnetic_field
 
     
     def __str__(self):
@@ -129,6 +133,43 @@ class Star:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+
+    @property
+    def mass(self):
+        return self._mass
+    @mass.setter
+    def mass(self, value: dict):
+        mass = value["mass"]
+        radius = value["radius"]
+        sptype = value["sptype"]
+
+        if not np.isnan(mass):
+            self._mass = mass
+        elif np.isnan(mass) and not np.isnan(radius):
+            mass_pred = 0
+            coeffs_4 = [0.10475789, -0.00353006, -0.59214912,  0.67046595, -0.0141531]
+            for i,c in enumerate(coeffs_4[::-1]) : 
+                mass_pred += c*np.power(np.log10(radius),i)
+            self._mass = 10**mass_pred
+        elif np.isnan(mass) and np.isnan(radius) :
+            #Mean mass of the stellar class
+            class_letter = sptype[0] if (len(sptype) != 0) else ""
+            if (class_letter == "O") or (class_letter == "o") :
+                self._mass = 16.
+            elif (class_letter == "B") or (class_letter == "b") :
+                self._mass = 9.05
+            elif (class_letter =="A") or (class_letter == "a") :
+                self._mass = 1.75
+            elif (class_letter =="F") or (class_letter == "f") :
+                self._mass = 1.22
+            elif (class_letter =="G") or (class_letter == "g") :
+                self._mass = 0.92
+            elif (class_letter =="K") or (class_letter == "k") :
+                self._mass = 0.625
+            elif (class_letter =="M") or (class_letter == "m") :
+                self._mass = 0.265
+            else :
+                self._mass = np.nan
 
     @property
     def radius(self):
@@ -148,9 +189,10 @@ class Star:
         return self._rotperiod
     @rotperiod.setter
     def rotperiod(self, value :dict):
+
         if not np.isnan(value["vsini"]) :
             self._rotperiod = 2 * np.pi * self.unnormalize_radius() / ( 86400 * np.sqrt(4/3) * value['vsini'] * 1e3)
-
+        
         elif (not np.isnan(value['flux_B']) and not np.isnan(value['flux_V'])) and ((value['flux_B']-value['flux_V']) > 0.4): #Barnes 2007
             self._rotperiod = 0.775 * np.power((value['flux_B'] - value['flux_V']) - 0.4,0.6) * np.power(self.age / 1e6,0.52)
 
@@ -169,28 +211,26 @@ class Star:
     
     @property
     def luminosity(self):
+        if self._luminosity is None : 
+            a = 0.39704170
+            b = 8.52762600
+            c = 0.00025546
+            d = 5.43288900
+            e = 5.56357900
+            f = 0.78866060
+            g = 0.00586685
+            M = self.mass
+            res1 = a * pow(M, 5.5) + b * pow(M, 11)
+            res2 = (
+                c
+                + pow(M, 3)
+                + d * pow(M, 5)
+                + e * pow(M, 7)
+                + f * pow(M, 8)
+                + g * pow(M, 9.5)
+            )
+            self._luminosity = res1 / res2
         return self._luminosity
-    
-    @luminosity.setter
-    def luminosity(self, value : float):
-        a = 0.39704170
-        b = 8.52762600
-        c = 0.00025546
-        d = 5.43288900
-        e = 5.56357900
-        f = 0.78866060
-        g = 0.00586685
-        M = value
-        res1 = a * pow(M, 5.5) + b * pow(M, 11)
-        res2 = (
-            c
-            + pow(M, 3)
-            + d * pow(M, 5)
-            + e * pow(M, 7)
-            + f * pow(M, 8)
-            + g * pow(M, 9.5)
-        )
-        self._luminosity = res1 / res2
 
     @property
     def effective_temperature(self):
@@ -219,6 +259,33 @@ class Star:
         LX = value.compute_xray_flux_from_coords(self.coordinates)
         self._Xray_flux = LX / (4*np.pi*np.power(self.unnormalize_radius()*1e2,2))
 
+    @property
+    def magfield(self):
+        return self._magfield
+    @magfield.setter
+    def magfield(self, value : dict):
+        mag_field = value['mag_field']
+        model = value['model']
+        Bstar_catalog = value['Bstar_catalog']
+        if np.isnan(mag_field):
+            if len(model) > 1 :
+                logger.error('ValueError:Several models were selected for computing stellar magnetic field, only one can be chosen.')
+                raise ValueError('Several models were selected for computing stellar magnetic field, only one can be chosen.')
+            elif len(model) == 0 :
+                logger.error("ValueError : No models were selected for stellar magnetic field.")
+                raise ValueError('No model was selected for stellar magntic field.')
+            else :
+                self._magfield = self._compute_magfield(model = model[0], 
+                                    rotperiod = self.rotperiod, 
+                                    Teff=self.effective_temperature,
+                                    mass = self.mass,
+                                    radius= self.radius,
+                                    age =self.age,
+                                    Bstar_database= Bstar_catalog,
+                                    sptype= self.sp_type
+                                    ) * 1e-4
+        else : 
+            self._magfield = mag_field * 1e-4
 
     def unnormalize_mass(self) -> float:
         MS = 1.989e30  # kg
@@ -238,27 +305,6 @@ class Star:
     def obs_dist_meters(self) -> float:
         pc = 3.08568e16  # m
         return self.obs_dist * pc
-
-    def compute_magnetic_field(self, value :dict):
-        model = ['Bstar_original'] if (self.mass > 1.6) else value['model']
-        mag_field = value['mag_field']
-        if self.magfield is None :
-            if np.isnan(mag_field):
-                if len(model) > 1 :
-                    logger.error('ValueError:Two models were selected for computing stellar magnetic field, only one can be chosen.')
-                    raise ValueError('Two models were selected for computing stellar magnetic field, only one can be chosen.')
-                elif len(model) == 0 :
-                    logger.error("ValueError : Values for stellar magnetic fields are from catalog only, no models were selected.")
-                    raise ValueError('Values for stellar magnetic fields are from catalog only, no models were selected.')
-                else :
-                    self.magfield = self._compute_magfield(model = model[0], 
-                                        rotperiod = self.rotperiod, 
-                                        Teff=self.effective_temperature,
-                                        mass = self.mass,
-                                        sptype= self.sp_type
-                                        ) * 1e-4
-            else : 
-                self.magfield = mag_field * 1e-4
 
     @staticmethod
     def _calculate_radius(
@@ -293,12 +339,13 @@ class Star:
         return rotperiod
 
     @staticmethod
-    def _compute_magfield(model : str, rotperiod: float, Teff : float, mass : float, sptype :str):
+    def _compute_magfield(model : str, rotperiod: float, Teff : float, mass : float, radius : float, age : float, Bstar_database : pd.DataFrame, sptype :str):
         """If the stellar magnetic field is computed and not taken from the catalog provided by Duchêne et al, 2025.
             Three models are available : 
                 - 'Bstar_original', from Griessmeier et al, 2077, A&A
-                - 'Bstar_polyfit :  a polynomiual fit based on a catalog of measured $B_{star}$ found in the litterature
-                - 'Bstar_Vedantham' : a simplistic model proposeb by H.Vedantham for the SPi chapter in the recent SKA book.
+                - 'Bstar_polyfit :  a polynomial fit based on a catalog of measured $B_{star}$ found in the litterature
+                - 'Bstar_Vedantham' : a simplistic model proposed by H.Vedantham for the SPI chapter in the recent SKA book.
+                - 'Bstar_Duchene_et_al_2026' : a KNN model trained on a important catalog of stellar magnetic field measurements, published in Duchene et al, 2026, A&A.
 
             :param model:
                 The name of the model to be used for the computation.
@@ -316,6 +363,18 @@ class Star:
                 The mass of the star, in solar masses MS.
             :type mass:
                 float
+            :param radius:
+                The radius of the star, in solar radii RS.
+            :type radius:
+                float
+            :param age:
+                The age of the star in Gyr.
+            :type age:
+                float
+            :param Bstar_database:
+                The catalog of stellar magnetic field measurements from Duchene et al 2026.
+            :type Bstar_database:
+                class:~`pandas.DataFrame`
             :param sptype:
                 The spectral type of the star.
             :type sptype:
@@ -371,6 +430,21 @@ class Star:
             Bsun = 1.435 #G
             magfield = Bsun * np.power(10, 1 - (3*np.log10(mass)))
 
+        elif model == "Bstar_Duchene_et_al_2026" :
+            startest = pd.DataFrame({"Mass_Msun" : [mass],
+                            "perrot_s" : [rotperiod * 86400 / 2*np.pi],
+                            "Age_Gyr" : [age * 1e-9] ,
+                            "Teff_K" : [Teff],
+                            "diameter_km" : [2 * radius * 6.96342e8 * 1e-3], 
+                            "V_mag" : [np.nan]})
+            BKNN_result = KNNpred(Bstar_database,startest)
+            if np.isnan(BKNN_result.loc[0]) : 
+                BNN_result = NNpred(Bstar_database,startest)
+                magfield = BNN_result.loc[0,"BNN_G"]
+            else :
+                magfield = BKNN_result.loc[0]
+        elif model == "Bstar_catalog" :
+            magfield = np.nan
         return magfield
 
     @staticmethod
@@ -386,12 +460,15 @@ class Star:
             sp_type = 'M3.5V' if (sp_type == 'M(3.5+/-0.5) V') else sp_type
 
         #Special type that we do not consider
-        special_type = ['AM Her', 'AM', 'Am', 'Catac. var.']
+        special_type = ['AM Her', 'AM', 'Am', 'Catac. var.', "SdB"]
 
         for spe in special_type:
             if spe in sp_type :
                 sp_type_code = 3
                 return sp_type_code
+        if (sp_type == 'DA') or (sp_type == 'DAH'):
+            sp_type_code = 3
+            return sp_type_code
         
         if ('wd' in sp_type) or ('psr' in sp_type) or ('pul' in sp_type) :
             sp_type_code = 3
@@ -408,121 +485,7 @@ class Star:
             sp_type_code = 1
             return sp_type_code
         elif ("III" not in sp_type) and ("VII" not in sp_type) and ("II" not in sp_type) and ("I"not in sp_type) : #and ("IV" not in sp_type) and ("VI" not in sp_type)
-            if ('D' in sp_type) or ('M' in sp_type) or ('K' in sp_type) or ('G' in sp_type) or ('F' in sp_type) :
+            if ('D' in sp_type) or ('M' in sp_type) or ('K' in sp_type) or ('G' in sp_type) or ('F' in sp_type) or ('B' in sp_type) or ('A' in sp_type):
                 sp_type_code=1
                 return sp_type_code
         return sp_type_code
-        
-    
-    @staticmethod
-    def _decode_sp_type_old(sp_type : str):
-        types_roman = ["III", "IV", "VI", "VII", "II", "I"]
-
-        if sp_type == 'nan' :
-            sp_type_code = 2 
-            return sp_type_code 
-        else :
-            sp_type = 'G0V+pul' if (sp_type == 'G0Vpul') else sp_type
-            sp_type = 'M3.5V' if (sp_type == 'M(3.5+/-0.5) V') else sp_type
-
-        #Special type that we do not consider
-            special_type = ['AM Her', 'AM', 'Am', 'Catac. var.']
-
-            for spe in special_type:
-                if spe in sp_type :
-                    sp_type_code = 3
-                    return sp_type_code 
-                    
-            #Checking for binary systems
-            sp_type = sp_type.split('+')
-            if len(sp_type) <= 1 :
-                sp_type = sp_type[0].split('or')		
-
-            sp_type_code = []
-            for sp in sp_type :
-                code = 0
-                #Removing unnecessary spaces
-                names = sp.split(' ')
-                sp=''
-                for i in range (len(names)):
-                    sp += names[i]
-
-                #Discard pulsars
-                if ('wd' in sp.lower()) or ('psr' in sp.lower()) or ('pul' in sp.lower()) :
-                    code = 3
-                    sp_type_code.append(code)
-                    continue
-
-                #Check for post-fixes
-                postfixes_1 = ['A','B','C','D','E','p','e','m']
-                for pf in postfixes_1 :
-                    if sp[-1] == pf :
-                        sp = sp[0:-1]
-                        print('pf1')
-                        break
-                
-                #postfixes_2 = ['ep','pe']
-                #for pf in postfixes_2 :
-                #	if sp[-2:] == pf :
-                #		sp = sp[0:-2]
-                #		print('pf2')
-                #		break
-
-                sp = sp[0:-5] if (sp[-5:] == 'pecul') else sp
-                sp = sp[0:-6] if (sp[-6:] == 'pecul.') else sp
-
-                #Case of dwarves
-
-                sp = sp[0:-6]+'V' if (sp[-6:] == '-dwarf') else sp
-                sp = sp[0:-5]+'V' if (sp[-5:] == 'dwarf') else sp
-
-                #First check for types in roman numbers
-
-                for rom in types_roman :
-                    if rom in sp :
-                        code = 3
-                        
-                if code != 0 :
-                    sp_type_code.append(3)
-                    continue
-
-                #Prefixes 'd' and 'sd'
-                sp = sp[1:]+'VII' if (sp[0:1].lower() == 'd') else sp
-                sp = sp[2:]+'VI' if (sp[0:2].lower() == 'sd') else sp
-
-                #Postfixes 'Va','Vb','Ia', 'Ib'
-                postfixes_2 = ['Va','Vb','Ia', 'Ib']
-                for pf in postfixes_2 :
-                    if sp[-2:] == pf :
-                        sp = sp[0:-1]
-                        break
-
-                postfixes_3 = ['Vab','Iab']
-                for pf in postfixes_3 :
-                    if sp[-3:] == pf :
-                        sp = sp[0:-2]
-                        break
-
-                if sp == '' :
-                    code = 2 
-                if code != 0 :
-                    sp_type_code.append(code)
-                    continue
-
-                code = 3 if (sp[-1:] == 'I' or sp[-2:] == 'IV') else 0
-                if code != 0 :
-                    sp_type_code.append(code)
-                    continue
-
-                code = 1 if (sp[-1:] == 'V') else 0
-                if code != 0 :
-                    sp_type_code.append(code)
-                    continue
-
-                if code == 0 :
-                    code = 2
-                    sp_type_code.append(code)
-                    continue
-            sp_type_code = np.array(sp_type_code)
-
-            return np.min(sp_type_code)			

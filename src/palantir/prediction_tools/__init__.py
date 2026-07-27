@@ -1,15 +1,16 @@
 #src/prediction_tools
 
-from .target_selection import Config, XRayFluxCalculator,XRayFluxCalculatorNEXXUS, Prediction
+from .target_selection import Config,FlagTracker, XRayFluxCalculator,XRayFluxCalculatorNEXXUS, Prediction
 from .planet import Planet
 from .star import Star
 from .dynamo_region import DynamoRegion
 from .magnetic_moment import MagneticMoment
-from .stellar_wind import StellarWind
+from .stellar_wind import ParkerGrid, StellarWind
 from .emission import Emission
 
 __all__ = [
     "Config",
+    "FlagTracker",
     "XRayFluxCalculator",
     "XRayFluxCalculatorNEXXUS",
     "Prediction",
@@ -17,6 +18,7 @@ __all__ = [
     "Star",
     "DynamoRegion",
     "MagneticMoment",
+    "ParkerGrid",
     "StellarWind",
     "Emission",
 ]

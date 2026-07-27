@@ -20,7 +20,7 @@ def setup_logging(log_filepath: str = "", verbose: bool = False):
 
     if verbose:
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.WARNING)
         console_format = logging.Formatter('%(levelname)s - %(message)s')
         console_handler.setFormatter(console_format)
         logger.addHandler(console_handler)

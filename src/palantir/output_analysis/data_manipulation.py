@@ -103,8 +103,8 @@ class DataManipulation:
                 'spectral_type' : ['Spectral type', '[]'],
                 'spectral_type_code' : ['Spectral type code', '[]'],
                 'star_effective_temp' : ['$T_{eff,*}$', '[K]'], 
-                'dynamo_density' : [r"$\rho_{dyn}$", r"[$\rho_{dyn,J}$]"],
-                'dynamo_radius' : ['$r_{c,dyn}$', '[$r_{c,dyn,J}$]'],
+                'dynamo_density' : [r"$\rho_{dyn}$", r"[$g.cm^{-3}$]"],
+                'dynamo_radius' : ['$r_{c,dyn}$', '[$R_p$]'],
                 'B_dyn' : ['$B_{p,dyn}$', '[T]'],
                 'B_eq' : ['$B_{p,eq}$', '[T]'], 
                 'magnetic_moment' : ['$M_{mag,p}$', '[$M_{mag,J}$]'],
@@ -112,6 +112,7 @@ class DataManipulation:
                 'sw_density' : ['$n_{e,SW}$', '[$m^{-3}$]'],
                 'sw_effective_velocity' : ['$v_{eff,SW}$', '[$m.s^{-1}$]'],
                 'sw_velocity' : ['$v_{SW}$', '[$m.s^{-1}$]'],
+                'mass_loss_rate' : ['$\dot{M}_*$', '[$kg.s^{-1}$]'],
                 'coronal_temperature' : ['$T_{corona}$', '[K]'],
                 'sw_radial_magfield_planet' : ['$B_{radial}(d_{*-p})$', '[T]'],
                 'sw_azimuthal_magfield_planet' : ['$B_{\phi}(d_{*-p})$', '[T]'],
@@ -133,12 +134,13 @@ class DataManipulation:
                 'flux_received_spi' : ['$\Phi_{SPI}$', '[mJy]'], 
                 'fc_max_star' : ['$f_{c,*}^{max}$', '[MHz]'],
                 'fp_star' : ['$f_{p,*}$', '[MHz]'],
-                "distance_escaping_spi" : ['$R_*^{escaping}$', ['$R_{sun}$']], 
+                "distance_escaping_spi" : ['$R_*^{escaping}$', '[$R_{sun}$]'], 
                 "density_escaping_spi" : ['$n_e^{escaping}$', '[$m^{-3}$]'], 
                 "fc_star_escaping_spi" : ['$f_{c,*}^{escaping}$', '[MHz]'], 
                 "fp_star_escaping_spi" : ['$f_{p,*}^{escaping}$', '[MHz]'],
                 'tau_free_free_ms' : [r"$\tau_{free-free}^{MS}$", ''],
                 'tau_free_free_spi' : [r"$\tau_{free-free}^{SPI}$", ''],
+                "flag" : ["flag", ""]
             }
             self._dict_axis_label = dict_axis_label
         return self._dict_axis_label
@@ -438,7 +440,7 @@ class DataManipulation:
                     color='tab:blue')
         else :
             zscale = kwargs.get("zscale","linear")
-            zdata = 10*np.log10(zdata) if zscale == "log" else zdata
+            zdata = np.log10(zdata) if zscale == "log" else zdata
             im = ax.scatter(xdata[~np.isnan(zdata)],ydata[~np.isnan(zdata)], 
                 c=zdata[~np.isnan(zdata)], marker='o', cmap = 'viridis',
                 vmin = kwargs.get("zmin", 0.9 * np.min(zdata[~np.isnan(zdata)])),
@@ -541,21 +543,22 @@ class DataManipulation:
         mask_inf = ~np.isinf(data)
         mask_nan = ~np.isnan(data)
         print("Min : {}, Max : {}".format(np.min(data[mask_inf&mask_nan]), np.max(data[mask_inf&mask_nan])))
-        print("Arg min : {}, arg max : {}".format(np.argmin(data),np.argmax(data)))
+        print("Arg min : {}, arg max : {}".format(np.argmin(data[mask_inf&mask_nan]),np.argmax(data[mask_inf&mask_nan])))
         data_to_plot = np.log10(data[mask_inf&mask_nan]) if scale == "log" else data[mask_inf&mask_nan]
         ax.hist(data_to_plot, 
                 bins = kwargs.get('bins',25),
                 color = kwargs.get('color','tab:blue'),
                 range = kwargs.get('range',),
-                histtype = 'step'
+                histtype = 'step', label = 'min = {} '.format(np.min(data[mask_inf&mask_nan])) + self.dict_axis_label[xfield][1] + '\n max = {} '.format(np.max(data[mask_inf&mask_nan])) + self.dict_axis_label[xfield][1]
             )
-
-        ax.set_xlabel(kwargs.get('xlabel', self.dict_axis_label[xfield][0] + " " + self.dict_axis_label[xfield][1]), fontsize=18)
+        xlabel = "$log_{10}($" + self.dict_axis_label[xfield][0] + ") " + self.dict_axis_label[xfield][1] if scale == 'log' else self.dict_axis_label[xfield][0] + " " + self.dict_axis_label[xfield][1]
+        ax.set_xlabel(kwargs.get('xlabel',xlabel), fontsize=18)
         ax.set_ylabel('Count', fontsize=18)
         ax.set_xscale(kwargs.get('xscale','linear'))
         ax.set_yscale(kwargs.get('yscale','linear'))
         ax.tick_params(axis='both',labelsize=14)
         ax.set_title(kwargs.get('title',""))
+        plt.legend()
         plt.grid()
         plt.tight_layout()
 

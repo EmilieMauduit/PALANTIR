@@ -19,15 +19,18 @@ There are two papers related to this work, one published and one in writting, al
 
 # Installation
 
-Open your terminal. Go to the folder in which you want to use this algorithm. Copy-paste the https link in the 'Clone' button.
+Open your terminal. Go to the folder in which you want to use this algorithm. Copy-paste the https link in the 'Clone' button. Clone the repository and initialize the submodules present ([magfieldprediction](https://gitlab.obspm.fr/qduchene/mag_field_prediction)) :
 
 ```bash
 cd existing_repo
 git clone https://github.com/EmilieMauduit/PALANTIR.git
+git submodule --init
 ```
 
-Then you should load your desired python environment and install this package with :
+Then you should load your desired python environment and install this package and the submodule with :
 ```bash
+pip install .
+cd src/palantir/prediction_tools/mag_field_prediction 
 pip install .
 ```
 
@@ -178,15 +181,15 @@ sp_type_code;1
 
 - ### Stellar magnetic field models :
 
-The prediction of the stellar magnetic field can be done with several models. Y
+The prediction of the stellar magnetic field can be done with several models. Preferred one should be the one based on [Duchêne et al, 2026](https://doi.org/10.1051/0004-6361/202659108)
 
 ```bash
 setting;value
 .
 .
 Bstar_original;0
-Bstar_polyfit;1
-Bstar_catalog_only;0
+Bstar_polyfit;0
+Bstar_Duchene_et_al_2026;1
 ```
 
 - ### Verbose :

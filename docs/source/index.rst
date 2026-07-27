@@ -17,11 +17,12 @@ We consider two types of flow-obstacle interactions :
 
 Using PALANTIR, we prepared an updated list of targets of interest for radio emissions. Additionally, we compare our results with previous studies conducted with similar models [Griessmeier, Planetary Radio Emissions VIII, 2017](https://doi.org/10.1553/PRE8s285). 
 For the next steps, we aim at improving this code by adding new models and updating those already used. 
-There are two papers related to this work, one published and one in writting, along with a PhD manuscript (in French) :
+There are three papers related to this work, one published and one in writting, along with a PhD manuscript (in French) :
 
 - Mauduit et al, 'PALANTIR: An updated prediction tool for exoplanetary radio emissions', 2023, PRE IX, https://doi.org/10.25546/103092
 - Mauduit Emilie, 'Méthodes pour la détection d'exoplanètes en ondes radio basses fréquences : sélection de cibles, identification de contaminations, méthodes de détection et applications à Jupiter', 2024, https://theses.hal.science/tel-04821784v1 
-- Mauduit et al, 'PALANTIR: Predicting Star-Planet Interactions in Radio', 2025, to be submitted to Astronomy & Astrophysics
+- Duchêne et al, 'Stellar Magnetic Fields and Radio Emissions from Star–Planet Systems', 2026, PRE X, https://doi.org/10.25935/prex-rrvx
+- Mauduit et al, 'PALANTIR: Predicting Star-Planet Interactions in Radio', 2026, to be submitted to Astronomy & Astrophysics
 
 
 .. note::
@@ -38,12 +39,28 @@ There are two papers related to this work, one published and one in writting, al
    `GitLab issue <https://github.com/EmilieMauduit/PALANTIR/issuess>`_.
 
 .. note::
-   DOI for the `PALANTIR` package is going to be edited in the coming months.
+   [![DOI](https://zenodo.org/badge/480817410.svg)](https://doi.org/10.5281/zenodo.15599637)
 
    BibTeX citation:
 
    .. code-block:: bash
 
+      @software{emiliemauduit_2025_15600127,
+      author       = {EmilieMauduit},
+      title        = {EmilieMauduit/PALANTIR: Release v0.1.1},
+      month        = jun,
+      year         = 2025,
+      publisher    = {Zenodo},
+      version      = {v0.1.1},
+      doi          = {10.5281/zenodo.15600127},
+      url          = {https://doi.org/10.5281/zenodo.15600127},
+      swhid        = {swh:1:dir:97ea3dbf4f5e732292dcf1f9ab592503e9e00635
+                        ;origin=https://doi.org/10.5281/zenodo.15599637;vi
+                        sit=swh:1:snp:0a9f61d3b5b345f321a756000d9143f1cace
+                        33fe;anchor=swh:1:rel:1161f29eb661a467778dc05b2ef6
+                        23fb19aaa947;path=EmilieMauduit-PALANTIR-aa71d2d
+                        },
+      }
 
 .. _getting-started:
 

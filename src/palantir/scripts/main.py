@@ -18,14 +18,15 @@ import palantir
 from importlib_resources import files
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+from pyinstrument import Profiler
 
 from palantir.prediction_tools.star import Star
 from palantir.prediction_tools.planet import Planet
 from palantir.prediction_tools.dynamo_region import DynamoRegion
 from palantir.prediction_tools.magnetic_moment import MagneticMoment
-from palantir.prediction_tools.stellar_wind import StellarWind
+from palantir.prediction_tools.stellar_wind import ParkerGrid, StellarWind
 from palantir.prediction_tools.emission import Emission
-from palantir.prediction_tools.target_selection import Config, XRayFluxCalculatorNEXXUS
+from palantir.prediction_tools.target_selection import Config,FlagTracker, XRayFluxCalculatorNEXXUS
 
 import logging
 log = logging.getLogger('palantir.scripts.main')
@@ -42,7 +43,8 @@ LS = 3.826e26  # W
 
 MJ = 1.8986e27  # kg
 RJ = 69911e3  # m
-wJ = 1.77e-4  # s-1
+wrotJ = 1.77e-4  # rad.s-1
+worbJ = 1.68e-8  # rad.s-1
 
 ME = 5.97237e24  # kg
 RE = 6371.0e3  # m
@@ -69,6 +71,9 @@ log.info('This run was made with version {} of PALANTIR.'.format(palantir.__vers
 config_param.log_current_run_parameters()
 
 Xray_calculator = XRayFluxCalculatorNEXXUS()
+parker_grid = ParkerGrid()
+if config_param.star_magfield_models[0] == 'Bstar_catalog' :
+    catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog_latest.csv', delimiter=';')
 
 # --------------------------------------------------------- #
 # ---------------------- Data input ----------------------- #
@@ -93,7 +98,7 @@ os.system('cp ' + str(maps_dir / dict_data[config_param.database]) + ' ' + confi
 sun = Star(
     name="Sun",
     main_id="Sun",
-    mass=1.0,
+    mass={"mass" : 1.0, "radius" : 1.0, "sptype" : "GV"},
     coordinates= SkyCoord(ra=286.123*u.deg, dec=63.87*u.deg, frame='icrs'),
     radius={"models": config_param.star_radius_models, "radius": 1.0},
     age=AS,
@@ -102,15 +107,16 @@ sun = Star(
     obs_dist=1.0,
     sp_type ='GV',
     Xray_calculator=Xray_calculator,
+    magnetic_field={'model': config_param.star_magfield_models, 'mag_field' : 1.435, 'Bstar_catalog' : config_param.Bstar_database}
     )
 jupiter  = Planet(
     name="Jupiter",
-    mass=1.0,
+    mass={"mass" : 1.0, "mass_sini" : np.nan, "radius" : 1.0},
     radius={"models": config_param.planet_radius_models, "radius": 1.0},
     semi_major_axis=5.4546,
     distance=5.2,
     eccentricity=0.0487,
-    Torb={"star_mass": MS, "Torb": 1.0},
+    Torb={"star_mass": 1., "Torb": 4332.01},
     luminosity={
         "models": config_param.planet_luminosity_models,
         "luminosity": np.nan,
@@ -119,12 +125,11 @@ jupiter  = Planet(
     Trot=0.41351,
 )
 jupiter.tidal_locking(age=4.6e9, star_mass=1.0)
-sun.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : 1.435})
 dyn_region_jup = DynamoRegion.from_planet(planet=jupiter, rhocrit=config_param.rho_crit)
 dyn_region_jup.magnetic_field(planet=jupiter,rc_dyn=config_param.rc_dyn, jup=True)
 mag_moment_jup = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.56e27, Rm=1.0)
-sw_jup = StellarWind(Tcor={"star" : sun, "Tcor" : 0.81e6}, d_alfven_point={ "star": sun, "eccentricity" : jupiter.eccentricity})
-sw_jup.compute_Parker_solution(planet = jupiter, star=sun)
+sw_jup = StellarWind(Tcor={"star" : sun, "Tcor" : 1.77e6}, d_alfven_point={ "star": sun, "eccentricity" : jupiter.eccentricity, "parker_grid" : parker_grid})
+sw_jup.compute_Parker_solution(planet = jupiter, star=sun, parker_grid=parker_grid)
 sw_jup.compute_B_imf_components(planet = jupiter, star=sun)
 
 selected_targets = []
@@ -132,46 +137,49 @@ selected_targets = []
 i = 1
 
 skipped_targets = open('skipped_targets.txt', "w")
-
 new_rows = [config_param.output_params_units]
+
+profiling_pyinstrument = False
+if profiling_pyinstrument:
+    profiler = Profiler()
+    profiler.start()
 
 try :
 
     for target in data.itertuples():
+        flag = 0
         log.info("Planet : {}".format(target.pl_name))
         if ('PSR' in target.pl_name) or ('Pulsar' in target.pl_name) :
             print('Warning : {} has been skipped'.format(target.pl_name))
             skipped_targets.write(target.pl_name + ': pulsar \n')
             continue
 
-        if (
-            not np.isnan(target.semi_major_axis)
-            and (not np.isnan(target.mass) or not np.isnan(target.mass_sini))
-            and (not np.isnan(target.star_mass))
-        ):
+        if (not np.isnan(target.semi_major_axis)):
+            flag_tracker = FlagTracker(nmax_hypothesis=7)
+            if np.isnan(target.mass) and np.isnan(target.mass_sini) and np.isnan(target.radius):
+                log.info("Planetary mass and radius were not available, those parameters were set equal to Jupiter's.")
+                flag_tracker.activate(hypothesis_number=0)
 
-            if np.isnan(target.mass):
-                planet_mass = target.mass_sini * np.sqrt(4 / 3.0)
-            else:
-                planet_mass = target.mass
-            if not np.isnan(target.eccentricity):
-                planet_distance = target.semi_major_axis * (1 - target.eccentricity)
-            else:
-                planet_distance = target.semi_major_axis
+            planet_distance = target.semi_major_axis if np.isnan(target.eccentricity) else target.semi_major_axis * (1 - target.eccentricity)
 
             if np.isnan(target.star_age):
                 star_age = 5.2
+                flag_tracker.activate(hypothesis_number=1)
             else:
-                if target.star_age <= 0.7 :
+                if target.star_age <= 0.0001 :
                     log.info("Stellar age is too small")
                     skipped_targets.write(target.pl_name + ': stellar age is too small\n')
                     continue
                 else:
                     star_age = target.star_age
+            
+            # ==================================================== #
+            # ---------------------- Planet ---------------------- #
+            # ==================================================== #
 
             planet = Planet(
                 name=target.pl_name,
-                mass=planet_mass,
+                mass={"mass" : target.mass, "mass_sini" : target.mass_sini, "radius" : target.radius},
                 radius={"models": config_param.planet_radius_models, "radius": target.radius},
                 semi_major_axis=target.semi_major_axis,
                 distance=planet_distance,
@@ -186,25 +194,58 @@ try :
                 Trot=jupiter.rotperiod,
             )
 
+            # ================================================== #
+            # ---------------------- Star ---------------------- #
+            # ================================================== #
+
             simbad_query_result = config_param.query_simbad_star_param(star_name=html.unescape(target.star_name), sp_type = str(target.star_sp_type), star_alternate_names = target.star_alternate_names)
 
-            star = Star(
-                name=html.unescape(target.star_name),
-                main_id= simbad_query_result['main_id'],
-                coordinates = SkyCoord(ra=target.ra*u.deg, dec=target.dec*u.deg, frame='icrs'),
-                mass=target.star_mass,
-                radius={"models": config_param.star_radius_models, "radius": target.star_radius},
-                age=star_age,
-                Teff = target.star_teff,
-                rot_period = simbad_query_result,
-                obs_dist=target.star_distance,
-                sp_type = simbad_query_result['sp_type'],
-                Xray_calculator=Xray_calculator,
-                )
+            if config_param.star_magfield_models[0] == 'Bstar_catalog' :
+                crossmatch = catalog_Bstar[catalog_Bstar['Planet_Name']==target.pl_name]
+                if (crossmatch.size < 1):
+                    log.info("KNN prediction for B* could not be done since too many parameters were missing.")
+                    skipped_targets.write(target.pl_name + ': KNN prediction for B* could not be done since too many parameters were missing.\n')
+                    continue
+                mag_field = np.asarray(crossmatch['B_G'])[0]
+            else : 
+                mag_field = np.nan
+
+            try : 
+                star = Star(
+                    name=html.unescape(target.star_name),
+                    main_id= simbad_query_result['main_id'],
+                    coordinates = SkyCoord(ra=target.ra*u.deg, dec=target.dec*u.deg, frame='icrs'),
+                    mass={"mass" : target.star_mass, "radius" : target.star_radius, "sptype" : simbad_query_result['sp_type']},
+                    radius={"models": config_param.star_radius_models, "radius": target.star_radius},
+                    age=star_age,
+                    Teff = target.star_teff,
+                    rot_period = simbad_query_result,
+                    obs_dist=target.star_distance,
+                    sp_type = simbad_query_result['sp_type'],
+                    Xray_calculator=Xray_calculator,
+                    magnetic_field={'model': config_param.star_magfield_models, 'mag_field' : mag_field, 'Bstar_catalog' : config_param.Bstar_database}
+                    )
+            except (OverflowError, ValueError) :
+                log.info("Divergence in stellar magnetic field estimate")
+                skipped_targets.write(target.pl_name + ': divergence in stellar magnetic field estimate\n')
+                continue
             
+            if np.isnan(star.mass) :
+                log.info("Unable to estimate stellar mass.")
+                skipped_targets.write(target.pl_name + ': stellar mass could not be estimated.\n')
+                continue
+            
+            if np.isnan(target.star_mass) and np.isnan(target.star_radius) :
+                log.info("No value for stellar mass or radius in the catalog. Stellar spectral type was used to estimate the mass.")
+                flag_tracker.activate(hypothesis_number = 2)
+
             if star.rotperiod < 0.042 : #rotation period of less than 1h is unlikely.
                 log.info("Stellar rotation period is less than 1h.")
-                skipped_targets.write(target.pl_name + ': stellar rotation is less than 1hr.\n')
+                flag_tracker.activate(hypothesis_number = 3)
+
+            if star.sp_type_code > config_param.sp_type_code :
+                log.info("Star spectral type is not consistent with configuration parameters.")
+                skipped_targets.write(target.pl_name + ': star spectral type is not consistent with configuration parameters {}.\n'.format(target.star_sp_type))
                 continue
 
             if np.isnan(target.radius) and config_param.radius_expansion :
@@ -217,47 +258,42 @@ try :
                     log.info("Divergence in tidal locking")
                     skipped_targets.write(target.pl_name + ': divergence in tidal locking\n')
                     continue
-            
-            if star.sp_type_code > config_param.sp_type_code :
-                log.info("Star spectral type is not consistent with configuration parameters.")
-                skipped_targets.write(target.pl_name + ': star spectral type is not consistent with configuration parameters {}.\n'.format(target.star_sp_type))
-                continue
-
-            #### Computing stellar magnetic field
-
-            if config_param.star_magfield_catalog_only :
-                catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog.csv', delimiter=';')
-                crossmatch = catalog_Bstar[catalog_Bstar['Planet_Name']==target.pl_name]
-                if (crossmatch.size < 1) or (config_param.star_magfield_catalog_only and not np.asarray(crossmatch['True_pred'])[0]):
-                    log.info("KNN prediction for B* could not be done since too many parameters were missing.")
-                    skipped_targets.write(target.pl_name + ': KNN prediction for B* could not be done since too many parameters were missing.\n')
-                    continue
-                mag_field = np.asarray(crossmatch['B_G'])[0]
-
             else :
-                catalog_Bstar = pd.read_csv(maps_dir / 'crossmatch_mag_exo.csv', delimiter=',')
-                crossmatch = catalog_Bstar[catalog_Bstar['Simbad_ID']==star.main_id]
-                mag_field = np.asarray(crossmatch['Bestim_G'])[0] if (crossmatch.size>0) else np.nan
+                planet.tidally_locked = False
+            
+            if planet.rotrate == jupiter.rotrate :
+                log.info("No tidal locking for this planet, rotation period assumed to be Jupiter's.")
+                flag_tracker.activate(hypothesis_number = 4)
 
-            try :
-                star.compute_magnetic_field(value= {'model': config_param.star_magfield_models, 'mag_field' : mag_field})
-            except (OverflowError, ValueError) :
-                log.info("Divergence in stellar magnetic field estimate or catalog only was selected.")
-                skipped_targets.write(target.pl_name + ': divergence in stellar magnetic field estimate or catalog only was selected\n')
-                continue
+            # =========================================================== #
+            # ---------------------- Dynamo Region ---------------------- #
+            # =========================================================== #
 
-            dyn_region = DynamoRegion.from_planet(planet=planet, rhocrit=config_param.rho_crit)
-            dyn_region.normalize(other=dyn_region_jup)
+            try : 
+                dyn_region = DynamoRegion.from_planet(planet=planet, rhocrit=config_param.rho_crit)
+            except IndexError :
+                log.info("No solution found for LaneEmden equation.")
+                dyn_region = DynamoRegion(rhocrit = config_param.rho_crit, rhoc = np.nan, rc = np.nan)
+                flag_tracker.activate(hypothesis_number=5)
+
             dyn_region.magnetic_field(planet=planet, rc_dyn=config_param.rc_dyn)
 
+            # ========================================================== #
+            # ---------------------- Stellar Wind ---------------------- #
+            # ========================================================== #
+
             try:
-                stellar_wind = StellarWind(Tcor={"star" : star, "Tcor" : np.nan}, d_alfven_point={ "star": star, "eccentricity" : planet.eccentricity})
-                stellar_wind.compute_Parker_solution(planet = planet, star=star)
+                stellar_wind = StellarWind(Tcor={"star" : star, "Tcor" : np.nan}, d_alfven_point={ "star": star, "eccentricity" : planet.eccentricity, "parker_grid" : parker_grid})
+                stellar_wind.compute_Parker_solution(planet = planet, star=star, parker_grid=parker_grid)
                 stellar_wind.compute_B_imf_components(planet = planet, star=star)
             except (ValueError, RuntimeError):
                 log.info("Divergence in stellar wind calculation")
                 skipped_targets.write(target.pl_name + ': divergence in stellar wind calculation\n')
                 continue
+
+            # ============================================================= #
+            # ---------------------- Magnetic Moment ---------------------- #
+            # ============================================================= #
 
             magnetic_moment = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.0, Rm=1.0)
             magnetic_moment.magnetic_moment(
@@ -266,11 +302,16 @@ try :
             magnetic_moment.calc_magnetosphere_radius(mag_moment_jup, stellar_wind=stellar_wind)
             if magnetic_moment.normalize_standoff_dist(planet) < 1:
                 magnetic_moment.magnetosphere_radius = planet.unnormalize_radius()
-                log.info("Magnetosphere radius lower than 1.")
+                log.info("Predicted magnetosphere radius lower than 1 Rp. Forced to 1. Rp")
+                flag_tracker.activate(hypothesis_number=6)
 
             if not config_param.rc_dyn :
                 dyn_region.mag_field_equatorial = magnetic_moment.mag_moment * mag_moment_jup.mag_moment * 1e-7 /np.power(planet.unnormalize_radius(),3)
                 dyn_region.mag_field_dynamo = dyn_region.mag_field_equatorial * 2 * np.sqrt(2)
+
+            # ====================================================== #
+            # ---------------------- Emission ---------------------- #
+            # ====================================================== #
 
             target_emission = Emission(
                 name=planet.name,
@@ -285,7 +326,7 @@ try :
                 flux_received={"star": star, "stellar_wind" : stellar_wind},
                 free_free_spi={"star": star, "stellar_wind" : stellar_wind},
                 free_free_ms={"star": star, "stellar_wind" : stellar_wind, "planet":planet},
-                fcmax_star={"star": star, "planet": planet, "stellar_wind" : stellar_wind, "T_corona": stellar_wind.corona_temperature},
+                fcmax_star={"star": star, "planet": planet, "stellar_wind" : stellar_wind, "T_corona": stellar_wind.corona_temperature, "parker_grid":parker_grid},
                 fp_planet={"ne" : stellar_wind.density_planet},
                 fp_star={"ne" : stellar_wind.density_star}
             )
@@ -323,7 +364,7 @@ try :
                 star.sp_type_code,
                 star.effective_temperature,
                 dyn_region.density,
-                dyn_region.radius, #/ planet.unnormalize_radius(),
+                dyn_region.radius / planet.unnormalize_radius(),
                 dyn_region.mag_field_dynamo,
                 dyn_region.mag_field_equatorial,
                 magnetic_moment.mag_moment,
@@ -331,6 +372,7 @@ try :
                 stellar_wind.density_planet,
                 stellar_wind.effective_velocity,
                 stellar_wind.velocity_sw,
+                stellar_wind.mass_loss_rate,
                 stellar_wind.corona_temperature,
                 stellar_wind.radial_mag_field,
                 stellar_wind.azimuthal_mag_field,
@@ -357,21 +399,17 @@ try :
                 target_emission.test_escaping_spi["fc_star"]/1e6,
                 target_emission.test_escaping_spi["fp_star"]/1e6,
                 target_emission.tau_free_free_ms,
-                target_emission.tau_free_free_spi
+                target_emission.tau_free_free_spi,
+                flag_tracker.flags
             ]#, index = config_param.output_params)
             )
             i+=1
         
         else :
-            if np.isnan(target.semi_major_axis) :
-                skipped_targets.write(target.pl_name + ': semi-major axis unknown.\n')
-            elif (np.isnan(target.mass) or np.isnan(target.mass_sini)) :
-                skipped_targets.write(target.pl_name + ': planetary mass unknown.\n')
-            elif np.isnan(target.star_mass) :
-                skipped_targets.write(target.pl_name + ': star mass unknown.\n')
+            skipped_targets.write(target.pl_name + ': semi-major axis unknown.\n')
+            continue
 
 except KeyboardInterrupt : 
-    print ("Interrupted by user.")
     log.info("Interrupted by user.")
 
 finally :
@@ -388,6 +426,10 @@ finally :
 
     #data.to_csv(config_param.output_path +"/"+dateofrun+"/catalog_input.csv", sep=",", index=False)
     df_target.to_csv(config_param.output_path +"/"+dateofrun+"/main_output.csv", sep=";", index=False)
+
+    if profiling_pyinstrument:
+            profiler.stop()
+            profiler.print()
 
     # Sorting values by power of emission and by frequency
 

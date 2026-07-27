@@ -3,18 +3,22 @@ name = "palantir"
 version = "1.0.0"
 description = "PALANTIR : Prediction Algorithm for star-pLANeT Interactions in Radio. This software allows to predict the radio flux and frequency of potential radio emissions from exoplanetary systems. "
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "pandas",
     "astroquery",
     "numpy",
-    "scipy"
+    "scipy",
+    "importlib_resources",
+    "matplotlib",
+    "nenupy",
 ]
+
 authors = [
   {name = "Emilie Mauduit", email = "emilie.mauduit@obspm.fr"},
   {name = "Jean-Mathias Griessmeier", email = "jean-mathias.griessmeier@cnrs-orleans.fr"},
   {name = "Philippe Zarka", email = "philippe.zarka@obspm.fr"},
-  {name = "Quentin Duchene", email = "quentin.duchene@obspm.fr"}
+  {name = "Noémie Duchene", email = "quentin.duchene@obspm.fr"}
 ]
 maintainers = [
   {name = "Emilie Mauduit", email = "emilie.mauduit@obspm.fr"}
@@ -40,4 +44,4 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src","tests"]
 [tool.setuptools.package-data]
-"palantir.input_files" = ["*.csv"]
+"palantir.input_files" = ["*.csv","*.sav"]

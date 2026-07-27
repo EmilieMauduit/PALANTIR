@@ -66,18 +66,19 @@ class DynamoRegion:
         """
         MS = 1.989e30  # kg
         RS = 6.96342e8  # m
+        RJ = 69911e3  # m
         rcJ = 0.8487819514093978 #Rj
         Bdyn = 4.8 * pow(
             (planet.unnormalize_mass() / MS)
             * (planet.luminosity ** 2)
             * pow(RS / planet.unnormalize_radius(), 7),
             1.0 / 6,
-        ) #kG
-        self.mag_field_dynamo = Bdyn * 1e-1 #T
+        ) * 1e-1 #T
+        self.mag_field_dynamo = Bdyn 
 
         if jup :
             if rc_dyn : 
-                self.mag_field_equatorial = pow(rcJ,3) * Bdyn / (2 * m.sqrt(2))
+                self.mag_field_equatorial = pow(self.radius / RJ ,3) * Bdyn  / (2 * m.sqrt(2))
             else :
                 if planet.mass > 13. :
                     self.mag_field_equatorial = Bdyn / (2 * m.sqrt(2))
@@ -85,7 +86,7 @@ class DynamoRegion:
                     self.mag_field_equatorial = pow(1 - (0.17 / planet.mass), 3) * Bdyn / (2 * m.sqrt(2))
         else :
             if rc_dyn :
-                self.mag_field_equatorial = pow(self.radius*rcJ,3) * Bdyn / (2 * m.sqrt(2))
+                self.mag_field_equatorial = pow(self.radius / RJ ,3) * Bdyn / (2 * m.sqrt(2))
             else :
                 if planet.mass > 13. :
                     self.mag_field_equatorial = Bdyn / (2 * m.sqrt(2))
@@ -123,46 +124,53 @@ class DynamoRegion:
     
     @staticmethod
     def _rhoLE(r, Mp, Rp, rhot):
-        a = np.pi * Mp / (4 * pow(Rp, 3))
+        a = np.pi * Mp / (4 * np.power(Rp, 3))
         b = np.pi * r / Rp
         res = a * np.sin(b) / b
         return res - rhot
     
     @staticmethod
     def _rhoLEp(r, Mp, Rp, rhot):
-        a = np.pi * Mp / (4 * pow(Rp, 3))
+        a = np.pi * Mp / (4 * np.power(Rp, 3))
         res = a * (
             (np.cos(np.pi * r / Rp) / r)
             - (np.sin(np.pi * r / Rp) * Rp / (np.pi * pow(r, 2)))
         )
         return res
     
+
     @staticmethod
     def _LaneEmden(Mp, Rp, rhot):
         """ Compute the radius of the dynamo region, if existing, by using Lane-Emden equation.
+        If the density of the planet is smaller than the chosen transition density, value is set to NaN.
+        """
+        if np.pi*Mp/(4*(Rp**3)) < rhot :
+            return np.nan
+        
+        else : 
+            radius = np.linspace(0.,1,1000) * Rp
+            rho = DynamoRegion._rhoLE(radius,Mp,Rp,rhot)
+            indexes = np.argwhere(rho <= 0.)[0]
+            return radius[indexes[0]]
+
+    @staticmethod
+    def _LaneEmden_old(Mp, Rp, rhot):
+        """ Compute the radius of the dynamo region, if existing, by using Lane-Emden equation.
         If the density of the planet is smaller than the chosen transition density, value is set to zero.
         """
-        if np.pi*Mp/(4*Rp**3) < rhot :
+        if np.pi*Mp/(4*(Rp**3)) < rhot :
             return 0.
-        if Mp <= 5 * 1.8986e27:
+        else :
+            RJ = 69911e3  # m
+            radius = np.linspace(0.0,Rp/RJ,100) * RJ
+            rho = DynamoRegion._rhoLE(radius,Mp,Rp,rhot)
+            indexes = np.argwhere(rho <= 0.)[0]
             try:
                 res = optimize.newton(
-                    DynamoRegion._rhoLE, Rp / 2, fprime=DynamoRegion._rhoLEp, args=(Mp, Rp, rhot), maxiter=50
+                    DynamoRegion._rhoLE, radius[indexes[0]], fprime=DynamoRegion._rhoLEp, args=(Mp, Rp, rhot), maxiter=50
                 )
             except (ZeroDivisionError, RuntimeError):
-                res = 0.
-        else:
-            try:
-                res = optimize.newton(
-                    DynamoRegion._rhoLE,
-                    0.93 * Rp,
-                    fprime=DynamoRegion._rhoLEp,
-                    args=(Mp, Rp, rhot),
-                    tol=1.0,
-                    maxiter=50,
-                )
-            except (ZeroDivisionError, RuntimeError):
-                res = 0.
+                res = np.nan
 
         return res
 

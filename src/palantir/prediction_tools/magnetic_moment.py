@@ -101,31 +101,29 @@ class MagneticMoment:
 
         if normalize:
             wrot = planet.rotrate
+            rcdyn = dynamo.radius / dynamo_jup.radius
+            rhocdyn = dynamo.density / dynamo_jup.density
         else:
             wrot = planet.unnormalize_rotrate()
+            rcdyn = dynamo.radius
+            rhocdyn = dynamo.density
 
         for model in self.models:
             if model == "blackett":
-                M.append(self._Blackett(dynamo.radius, wrot, dynamo.density))
+                M.append(self._Blackett(rcdyn, wrot, rhocdyn))
             if model == "busse":
-                M.append(self._Busse(dynamo.radius, wrot, dynamo.density))
+                M.append(self._Busse(rcdyn, wrot, rhocdyn))
             if model == "mizu_mod":
-                M.append(self._Mizu_moderate(dynamo.radius, wrot, dynamo.density, 1.0))
+                M.append(self._Mizu_moderate(rcdyn, wrot, rhocdyn, 1.0))
             if model == "mizu_slow":
-                M.append(self._Mizu_slow(dynamo.radius, wrot, dynamo.density, 1.0))
+                M.append(self._Mizu_slow(rcdyn, wrot, rhocdyn, 1.0))
             if model == "sano":
-                M.append(self._Sano(dynamo.radius, wrot, dynamo.density))
-            if model == "rein-chris":
+                M.append(self._Sano(rcdyn, wrot, rhocdyn))
+            if (model == "rein-chris") or (model == "rein-chris-dyn"):
                 if planet.mass >= 0.17:
-                    M.append(self._Reiners_Christensen(planet, jup, dyn_region=dynamo, dynamo_jup = dynamo_jup))
+                    M.append(self._Reiners_Christensen(planet, dyn_region=dynamo, dynamo_jup = dynamo_jup))
                 else:
-                    log.warning("Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0.")
-                    M.append(np.nan)
-            if model == "rein-chris-dyn":
-                if planet.mass >= 0.17:
-                    M.append(self._Reiners_Christensen(planet, jup, dyn_region=dynamo,dynamo_jup = dynamo_jup))
-                else:
-                    log.warning("Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to 0.")
+                    log.warning("Warning : Planet mass is lower than 0.17 MJ. Magnetic moment has been set to NaN.")
                     M.append(np.nan)
 
         if Mmean and not Mmax:
@@ -298,7 +296,7 @@ class MagneticMoment:
     # Simulations
 
     @staticmethod
-    def _Reiners_Christensen(planet: Planet, jup: Planet, dyn_region : DynamoRegion, dynamo_jup : DynamoRegion):
+    def _Reiners_Christensen(planet: Planet, dyn_region : DynamoRegion, dynamo_jup : DynamoRegion):
 
         """Computing the magnetic moment based on Reiners-Christensen's simulations, 2010.
         :param planet:

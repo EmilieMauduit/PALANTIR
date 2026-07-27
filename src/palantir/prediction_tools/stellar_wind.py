@@ -8,12 +8,31 @@
 from scipy import optimize
 import numpy as np
 from math import sqrt, log, atan, sin
+from importlib_resources import files
+from scipy.io import readsav
+from scipy.interpolate import RegularGridInterpolator
 
-from palantir.prediction_tools.planet import Planet
-from palantir.prediction_tools.star import Star
+from palantir.prediction_tools import Planet, Star
 
 import logging
 logger = logging.getLogger('palantir.prediction_tools.stellar_wind')
+
+
+# ============================================================ #
+# ------------------------ ParkerGrid ------------------------ #
+# ============================================================ #
+
+class ParkerGrid:
+    def __init__(self):
+        maps_dir = files("palantir.scripts.input_files")
+        parker_grid = readsav(maps_dir / "parker.sav")
+        self.mass_ramp = np.array(parker_grid['m'],dtype='float')
+        self.tcor_ramp = np.array(parker_grid['t'], dtype = 'float')
+        self.dist_ramp = np.array(parker_grid['d'], dtype = 'float')
+        self.velocity_grid = np.array(parker_grid['v'],dtype="float")
+        self.interpolation_function_parker = RegularGridInterpolator((self.dist_ramp,self.tcor_ramp,self.mass_ramp),self.velocity_grid)
+
+
 # ============================================================= #
 # ------------------------ StellarWind ------------------------ #
 # ============================================================= #
@@ -40,6 +59,7 @@ class StellarWind:
         self.density_star = None
         self.velocity_sw = None
         self.effective_velocity = None
+        self.mass_loss_rate = None
         self.corona_temperature = Tcor
         self.distance_alfven_point = d_alfven_point
         self._alfven_velocity = None
@@ -55,7 +75,8 @@ class StellarWind:
         + "Effective velocity of the stellar wind : {} m.s-1 \n".format(self.effective_velocity)
         + "Temperature of the corona : {} MK \n".format(self.corona_temperature * 1e-6)
         + "Stellar wind magnetic field : {} T \n".format(self.perp_mag_field)
-        + "Electron Alfven velocity : {} m.s-1 \n".format(self.alfven_velocity))
+        + "Electron Alfven velocity : {} m.s-1 \n".format(self.alfven_velocity)
+        + "Stellar mass-loss rate : {} kg.s-1\n".format(self.mass_loss_rate))
 
 
     # --------------------------------------------------------- #
@@ -81,8 +102,20 @@ class StellarWind:
     @distance_alfven_point.setter
     def distance_alfven_point(self, value:dict):
         """Finds the position of the Alfven point where Btot^2/2mu0 = n*mp*v^2"""
+        parker_grid = value['parker_grid']
         d_values_coarse = np.logspace(np.log10(0.01),np.log10(100),60,endpoint=True)
-        f_values_coarse = np.array([self._alfven_point_equation(d,value['star'], value['eccentricity'],self.corona_temperature) for d in d_values_coarse],dtype='float')
+        f_values_coarse = np.array([self._alfven_point_equation(
+                                d,
+                                value['star'], 
+                                value['eccentricity'], 
+                                self.corona_temperature,
+                                dist_ramp=parker_grid.dist_ramp,
+                                mass_ramp=parker_grid.mass_ramp,
+                                tcor_ramp = parker_grid.tcor_ramp,
+                                interpolation=parker_grid.interpolation_function_parker
+                                ) 
+                            for d in d_values_coarse],dtype='float')
+        
         mask_coarse = ~np.isnan(f_values_coarse)
         idx_min_coarse = np.argmin(f_values_coarse[mask_coarse])
 
@@ -96,7 +129,17 @@ class StellarWind:
             d_min = d_values_coarse[mask_coarse][idx_min_temp] ; d_max = d_values_coarse[mask_coarse][idx_max_temp]
 
         d_values = np.logspace(np.log10(d_min),np.log10(d_max),40, endpoint=True)
-        f_values = np.array([self._alfven_point_equation(d,value['star'], value['eccentricity'], self.corona_temperature) for d in d_values],dtype='float')
+        f_values = np.array([self._alfven_point_equation(
+                                d,
+                                value['star'], 
+                                value['eccentricity'], 
+                                self.corona_temperature,
+                                dist_ramp=parker_grid.dist_ramp,
+                                mass_ramp=parker_grid.mass_ramp,
+                                tcor_ramp = parker_grid.tcor_ramp,
+                                interpolation=parker_grid.interpolation_function_parker
+                                ) 
+                            for d in d_values],dtype='float')
         mask = ~np.isnan(f_values)
         idx_min = np.argmin(f_values[mask])
         
@@ -114,16 +157,30 @@ class StellarWind:
         if self._alfven_velocity is None :
             mu0 = 4*np.pi*1e-7
             mp = 1.67e-27 #kg 
-            self._alfven_velocity = self.total_mag_field / np.sqrt(mu0 * self.density_planet * mp)
+            c = 3e8 #m.s-1
+            a = (c**2) * mu0 * self.density_planet * mp / (self.total_mag_field **2)
+            self._alfven_velocity = np.sqrt((c**2)/(1 + a))
+            #self.total_mag_field / np.sqrt(mu0 * self.density_planet * mp)
         return self._alfven_velocity
 
     ########## Methods ##########
-    def compute_Parker_solution(self, planet : Planet, star : Star):
-        v, veff, ne_planet, ne_star = self._Parker(star=star, distance=planet.stardist, eccentricity=planet.eccentricity, T = self.corona_temperature)
+    def compute_Parker_solution(self, planet : Planet, star : Star, parker_grid : ParkerGrid = None ):
+        if parker_grid is not None:
+            v, veff, ne_planet, ne_star, Mls = self._Parker_interpolation_grid(
+                                                    star = star, 
+                                                    distance = planet.stardist, 
+                                                    T = self.corona_temperature,
+                                                    dist_ramp=parker_grid.dist_ramp,
+                                                    mass_ramp=parker_grid.mass_ramp,
+                                                    tcor_ramp = parker_grid.tcor_ramp,
+                                                    interpolation=parker_grid.interpolation_function_parker)
+        else : 
+            v, veff, ne_planet, ne_star, Mls = self._Parker(star=star, distance=planet.stardist, eccentricity=planet.eccentricity, T = self.corona_temperature)
         self.density_planet = ne_planet
         self.density_star = ne_star
         self.velocity_sw = v
         self.effective_velocity = veff
+        self.mass_loss_rate = Mls 
     
     def compute_B_imf_components(self, planet: Planet, star: Star):
         self.radial_mag_field = self._calc_B_radial(
@@ -180,13 +237,24 @@ class StellarWind:
         d_alfven_point : float,
         star : Star,
         eccentricity : float,
-        T_corona :float
+        T_corona :float,
+        dist_ramp : np.ndarray,
+        mass_ramp : np.ndarray,
+        tcor_ramp : np.ndarray,
+        interpolation : RegularGridInterpolator
         ):
 
         mp = 1.660540210e-27  # kg
         mu0 = 4*np.pi * 1e-7
         try : 
-            v, veff, ne_planet, ne_star = StellarWind._Parker(star=star, distance=d_alfven_point, eccentricity= eccentricity, T = T_corona)
+            v, veff, ne_planet, ne_star, Mls = StellarWind._Parker_interpolation_grid(
+                                                    star=star, 
+                                                    distance=d_alfven_point, 
+                                                    T = T_corona,
+                                                    dist_ramp=dist_ramp,
+                                                    mass_ramp=mass_ramp,
+                                                    tcor_ramp = tcor_ramp,
+                                                    interpolation=interpolation)
 
             Br = StellarWind._calc_B_radial(
                 d = d_alfven_point, 
@@ -381,8 +449,8 @@ class StellarWind:
         return Bperp
 
     @staticmethod
-    def _mass_lossrate(t: float, R: float) -> float:
-        """Compute the stellar mass loss rate normalized to the sun
+    def _mass_lossrate(t: float, R: float, M:float, P:float) -> float:
+        """Compute the stellar mass loss rate in kg.s-1
         :param t:
             stellar age [yr]
         :type t:
@@ -391,14 +459,42 @@ class StellarWind:
             radius of the star [R_sun]
         :type R:
             float
+        :param M:
+            Stellar mass [M_sun]
+        :type M:
+            float
+        :param P:
+            Stellar rotation period [days]
+        :type P:
+            float
+
         """
         mp = 1.660540210e-27  # kg
         do = 1.49597870e11  # m
+        MS = 1.989e30  # kg
 
-        vsun = StellarWind._calc_vsun(t)
-        nsun = StellarWind._calc_nsun(t)
-        M = 4 * np.pi * (do**2) * nsun * vsun * mp * (R**2)
-        return M
+        if (t >= 0.1e6) and (t <= 1e6):
+            #Cranmer et al 2008 ApJ
+            Mls = 1e-9 * MS / (365 * 86400)
+
+        if (M > 0.25) and (M < 1.2) :
+            if (t>1e6) and (t<=100e6) :
+                # Bouvier & Gallet 2013 AA
+                Mls = 1.8e-14 * np.power(25.5/P,1.58) * MS / (365 * 86400)
+            elif (t > 100e6) and (t <= 5.2e9) : 
+                #Johnstone et al 2015 AA (II)
+                Mls = np.power(R,2) * np.power(25.5/P,1.33) * np.power(M,-3.36) * 2e-14 * MS / (365 * 86400)
+            else :
+                #Newkirk 1980
+                vsun = StellarWind._calc_vsun(t)
+                nsun = StellarWind._calc_nsun(t)
+                Mls = 4 * np.pi * (do**2) * nsun * vsun * mp * (R**2)
+        else :
+            #Newkirk 1980
+            vsun = StellarWind._calc_vsun(t)
+            nsun = StellarWind._calc_nsun(t)
+            Mls = 4 * np.pi * (do**2) * nsun * vsun * mp * (R**2)
+        return Mls
 
     @staticmethod
     def _parker_velocity(v: float, d: float, rc: float, vc: float) -> float:
@@ -585,6 +681,70 @@ class StellarWind:
         return T
 
     @staticmethod
+    def _Parker_interpolation_grid(
+            star: Star, 
+            distance: float, 
+            T: float, 
+            dist_ramp : np.ndarray,
+            mass_ramp : np.ndarray,
+            tcor_ramp : np.ndarray,
+            interpolation : RegularGridInterpolator
+            ) :
+        """Compute the velocity and the density of the SW using a 3D-grid (M,Tcor,d_*p) of precomputed solutions of the Parker model.
+        :param distance:
+            The distance from the star where the parameters should be evaluated in astronomical units (AU).
+        :type distance:
+            float
+        :param star:
+            The associated star
+        :type star:
+            Star
+        """
+        kb = 1.380658e-23  # J/K
+        mp = 1.660540210e-27  # kg
+        dua = 1.49597870700e11  # m
+        G = 6.6725985e-11  # N.m^2/kg^2
+        d = distance #AU
+        t = star.age  # yr
+        vc = sqrt(2 * kb * T / mp)
+        rc = mp * G * star.unnormalize_mass() / (4 * kb * T)
+        vorb = sqrt(G * star.unnormalize_mass() / (d * dua))
+
+
+        if (distance * dua > np.max(dist_ramp) ) :
+            dist = np.max(dist_ramp)
+        elif (distance * dua < np.min(dist_ramp) ) :
+            dist = np.min(dist_ramp)
+        else :
+            dist = d*dua
+        
+        if (star.unnormalize_mass() > np.max(mass_ramp)):
+            mass = np.max(mass_ramp)
+        elif (star.unnormalize_mass() < np.min(mass_ramp)):
+            mass = np.min(mass_ramp)
+        else :
+            mass = star.unnormalize_mass()
+
+        if (T > np.max(tcor_ramp)):
+            tcor = np.max(tcor_ramp)
+        elif (T < np.min(tcor_ramp)):
+            tcor = np.min(tcor_ramp)
+        else :
+            tcor = T
+
+        point = np.array([dist,tcor,mass])
+        v = interpolation(point)[0]
+
+        veff = sqrt((v**2) + (vorb**2))
+        Mls = StellarWind._mass_lossrate(t, star.radius, star.mass, star.rotperiod)
+        ne_planet = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
+        ne_star = ne_planet * ((d * dua / star.unnormalize_radius()) ** 2)
+        if (ne_planet <= 0) or (ne_star <= 0):
+            logger.error("Negative stellar wind density is not physical.")
+            raise ValueError("Negative or null stellar wind density is not physical.")
+        return (v, veff, ne_planet, ne_star, Mls)
+
+    @staticmethod
     def _Parker(star: Star, distance: float, eccentricity : float, T: float):
         """Compute the velocity and the density of the SW using the Parker model.
         :param distance:
@@ -655,13 +815,13 @@ class StellarWind:
             v = v_temp
 
         veff = sqrt((v**2) + (vorb**2))
-        Mls = StellarWind._mass_lossrate(t, star.radius)
+        Mls = StellarWind._mass_lossrate(t, star.radius, star.mass, star.rotperiod)
         ne_planet = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
         ne_star = ne_planet * ((d * dua / star.unnormalize_radius()) ** 2)
         if (ne_planet <= 0) or (ne_star <= 0):
             logger.error("Negative stellar wind density is not physical.")
             raise ValueError("Negative or null stellar wind density is not physical.")
-        return (v, veff, ne_planet, ne_star)
+        return (v, veff, ne_planet, ne_star,Mls)
 
     @staticmethod
     def _CME(star: Star, planet: Planet):

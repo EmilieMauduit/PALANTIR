@@ -1,0 +1,3 @@
+[submodule "src/palantir/prediction_tools/mag_field_prediction"]
+	path = src/palantir/prediction_tools/mag_field_prediction
+	url = https://gitlab.obspm.fr/qduchene/mag_field_prediction.git
