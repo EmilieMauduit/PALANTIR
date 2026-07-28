@@ -8,6 +8,7 @@
 
 src/palantir/prediction_tools/stellar_wind_old.py
 src/palantir/scripts/input_files/Bstar_catalog_new.csv
+src/palantir/scripts/input_files/run_parameters.csv
 
 # Caches
 __pycache__/
