@@ -3,7 +3,7 @@ name = "palantir"
 version = "1.0.0"
 description = "PALANTIR : Prediction Algorithm for star-pLANeT Interactions in Radio. This software allows to predict the radio flux and frequency of potential radio emissions from exoplanetary systems. "
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = "==3.10"
 dependencies = [
     "pandas",
     "astroquery",
@@ -12,6 +12,7 @@ dependencies = [
     "importlib_resources",
     "matplotlib",
     "nenupy",
+    "pyinstrument"
 ]
 
 authors = [

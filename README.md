@@ -24,14 +24,20 @@ Open your terminal. Go to the folder in which you want to use this algorithm. Co
 ```bash
 cd existing_repo
 git clone https://github.com/EmilieMauduit/PALANTIR.git
-git submodule --init
+cd PALANTIR
+git submodule update --init
 ```
 
-Then you should load your desired python environment and install this package and the submodule with :
+Then you should load your desired python environment (it should be python3.9 or 3.10, the version of tensorflow used is not compatible with more recent version of python) and install this package and the submodule with :
 ```bash
 pip install .
 cd src/palantir/prediction_tools/mag_field_prediction 
 pip install .
+```
+
+*Warning* If you use an older MacOs system based on Intel processor you might need to manually install some of the dependencies before running the previous installation steps :
+```bash
+pip install --only-binary=:all: cryptography -v
 ```
 
 In order to use it from any folder, add the path to the module to your `PYTHONPATH` in your `/.bashrc`.
@@ -58,7 +64,7 @@ The code relies on a variety of models for prediction that can be chosen as wish
 
 PALANTIR can use three different databases, it is not yet capable of combining multiple databases. The user can choose between the database from [exoplanet.eu](https://exoplanet.eu/home/), which is the one used in every study published by the author, the NASA exoplanet database, or a custom one.
 
-In each case, a version of the database is present in `~/src/palantir/scripts/input_files/`. The author tries to keep these version updated, but they strongly encourage the user to go onte the corresponding website, dowload and save the file in the above folder to make sure they run with the latest version. As for the custom catalog, an example is also provided in the same folder, the user have to make sure it has the given structure, else the code will not be able to read it.
+In each case, a version of the database is present in `~/src/palantir/scripts/input_files/`. The author tries to keep these version updated, but they strongly encourage the user to go onto the corresponding website, download and save the file in the above folder to make sure they run with the latest version. As for the custom catalog, an example is also provided in the same folder, the user have to make sure it has the given structure, else the code will not be able to read it.
 
 In the parameter file, the user can choose the database by putting 0 or 1, in the value column of the following setting :
 
@@ -104,7 +110,7 @@ mizu_mod;0
 sano;0
 ```
 
-There are two possibilities for the [Reiners-Christensen]() model, we recommend using the "dynamo" one. In their paper they use an approximated factor to estimate the size of the dynamo region, that is defined so that it is $0.83$ in the case of Jupiter. Since PALANTIR also allows to predict the size of this region, we directely use our prediction in their formula.
+There are two possibilities for the [Reiners-Christensen](https://doi.org/10.1051/0004-6361/201014251 ) model, we recommend using the "dynamo" one. In their paper they use an approximated factor to estimate the size of the dynamo region, that is defined so that it is $0.83$ in the case of Jupiter. Since PALANTIR also allows to predict the size of this region, we directely use our prediction in their formula.
 
 - ### Dynamo region density models :
 
@@ -190,6 +196,7 @@ setting;value
 Bstar_original;0
 Bstar_polyfit;0
 Bstar_Duchene_et_al_2026;1
+Bstar_catalog;0
 ```
 
 - ### Verbose :
@@ -205,7 +212,7 @@ talk;0
 
 - ### Output path :
 The user can specify the path to the folder where the outputs should be saved. 
-The pipeline will create a new folder within the given one, with a name of the format `2025-06-25T18h59`, that will correspond to the date and time at which the pipeline started to run. 
+The pipeline will create a new folder within the given one, with a name of the format `YYYY-MM-DDThhhmm`, that will correspond to the date and time at which the pipeline started to run. 
 ```bash
 setting;value
 .
@@ -216,7 +223,7 @@ path_outputs;/mypath/myfolder
 ## 2 - Starting the prediction run
 
 ```bash
-python -m palantir.scripts.main.py 
+python -m palantir.scripts.main
 ```
 
 ## 3 - Output files :
