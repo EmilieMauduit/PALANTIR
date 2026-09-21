@@ -177,7 +177,7 @@ class Emission:
     def test_escaping_spi(self, value:dict):
         dua = 1.49597870700e11  # m
         if (10*self.freq_p_star > self.freq_c_max_star) :
-            fc, fp, r, ne_sw = self.find_escaping_freq_spi(
+            fc, fp, r, ne_sw, veff, Bperp  = self.find_escaping_freq_spi(
                 star = value["star"],
                 planet = value["planet"], 
                 d_alfven_point=value["stellar_wind"].distance_alfven_point, 
@@ -187,19 +187,24 @@ class Emission:
                 tcor_ramp=value['parker_grid'].tcor_ramp,
                 interpolation=value['parker_grid'].interpolation_function_parker
                 )
+
             if np.isnan(fc):
                 r = value["star"].unnormalize_radius() / dua
                 ne_sw = value['stellar_wind'].density_star
                 fc = self.freq_c_max_star
-                fp = self.freq_p_planet
+                fp = self.freq_p_star
+                veff = value['stellar_wind'].effective_velocity
+                Bperp = value['stellar_wind'].perp_mag_field
 
         else :
             r = value["star"].unnormalize_radius() / dua
             ne_sw = value['stellar_wind'].density_star
             fc = self.freq_c_max_star
-            fp = self.freq_p_planet
+            fp = self.freq_p_star
+            veff = value['stellar_wind'].effective_velocity
+            Bperp = value['stellar_wind'].perp_mag_field
 
-        self._test_escaping_spi = {"radius" : r, "density" : ne_sw, "fc_star" : fc, "fp_star" : fp}
+        self._test_escaping_spi = {"radius" : r, "density" : ne_sw, "fc_star" : fc, "fp_star" : fp, "veff" : veff, "B_perp" : Bperp}
 
     @staticmethod
     def find_escaping_freq_spi(
@@ -227,13 +232,15 @@ class Emission:
                                                     tcor_ramp = tcor_ramp,
                                                     interpolation=interpolation)
                 mag_field = StellarWind._calc_B_total(r,star, vsw, d_alfven_point)
+                Bperp = StellarWind._calc_Bperp(r,star, planet, vsw,d_alfven_point)
                 fp = np.sqrt((e**2) * ne_sw /( epsilon0 * me))/ (2 * np.pi)
                 fc = e * mag_field / (2 * np.pi * me)
                 if fc > 10*fp :
-                    return fc, fp, r, ne_sw
+                    Bperp = StellarWind._calc_Bperp(r,star, planet, vsw,d_alfven_point)
+                    return fc, fp, r, ne_sw, veff, Bperp
             except (ValueError,RuntimeError) :
                 continue
-        return np.nan, np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
     #=============== Powers emitted ===============#
 
@@ -258,21 +265,10 @@ class Emission:
         density_jup = 1.98e5  # m-3
         veff_jup = 523e3  # m/s
 
-        self._pow_emission_kinetic = (
-            prad_jup
-            * pow(value["planet"].radius, 2)
-            * pow(
-                (
-                    value["magnetic_moment"].normalize_standoff_dist(
-                        planet=value["planet"]
-                    )
-                    / standoff_dist_jup
-                ),
-                2,
-            )
-            * (value["stellar_wind"].density_planet / density_jup)
-            * pow(value["stellar_wind"].effective_velocity / veff_jup, 3)
-        )
+        self._pow_emission_kinetic = (pow(value["planet"].unnormalize_radius(), 2) 
+            * pow(value["magnetic_moment"].magnetosphere_radius,2)
+            * (value["stellar_wind"].density_planet)
+            * pow(value["stellar_wind"].effective_velocity, 3))
 
     @property
     def pow_emission_magnetic(self):
@@ -319,8 +315,8 @@ class Emission:
             R_iono = value["planet"].unnormalize_radius() * 1.2
             beta = 2e-3 
             self._pow_emission_spi = ( beta * np.pi
-            * value["stellar_wind"].effective_velocity
-            * pow(value["stellar_wind"].perp_mag_field , 2)
+            * self._test_escaping_spi['veff'] #* value["stellar_wind"].effective_velocity
+            * pow(self._test_escaping_spi['B_perp'], 2) #* pow(value["stellar_wind"].perp_mag_field , 2)
             * pow(R_iono,2)
             ) / (4e-7 * np.pi)
 
@@ -356,7 +352,7 @@ class Emission:
             dua = 1.49597870700e11  # m
             try :
                 self._flux_spi_au = self._pow_emission_spi / (
-                    0.16 * 0.5 * self.freq_c_max_star * (dua**2)
+                    0.16 * 0.5 * self._test_escaping_spi["fc_star"] * (dua**2)
                 )
             except(ZeroDivisionError):
                 self._flux_spi_au = np.nan
@@ -416,7 +412,7 @@ class Emission:
         else :
             try :
                 self._flux_received_spi = self._pow_emission_spi / (
-                    0.16 * 0.5 * self.freq_c_max_star * pow(value["star"].obs_dist * pc, 2)
+                    0.16 * 0.5 * self.test_escaping_spi['fc_star'] * pow(value["star"].obs_dist * pc, 2)
                 )
             except (ZeroDivisionError):
                 self._flux_received_spi = np.nan
@@ -436,7 +432,7 @@ class Emission:
         stellar_wind = value["stellar_wind"]
         dua = 1.49597870700e11  # m
 
-        self._tau_free_free_spi = 111 * pow(stellar_wind.corona_temperature, -0.5) * (self.test_escaping_spi["density"]**2) * pow(self.test_escaping_spi['radius'] * dua,2)/ ((self.test_escaping_spi['fc_star']**2) * star.unnormalize_mass())
+        self._tau_free_free_spi = 109.6 * pow(stellar_wind.corona_temperature, -0.5) * (self.test_escaping_spi["density"]**2) * pow(self.test_escaping_spi['radius'] * dua,2)/ ((self.test_escaping_spi['fc_star']**2) * star.unnormalize_mass())
 
     @property
     def tau_free_free_ms(self):
@@ -450,6 +446,6 @@ class Emission:
             raise KeyError("planet or stellar_wind not in value")
         planet = value["planet"]
         stellar_wind = value["stellar_wind"]
-        self._tau_free_free_ms = 1.8e-12 * pow(stellar_wind.corona_temperature, -3.5) * (stellar_wind.density_planet**2) * (planet.stardist *dua)/ (self.freq_c_max_planet**2)
+        self._tau_free_free_ms = 0.6e-12 * pow(stellar_wind.corona_temperature, -3/2) * (stellar_wind.density_planet**2) * (planet.stardist *dua)/ (self.freq_c_max_planet**2)
 
 

@@ -72,8 +72,8 @@ config_param.log_current_run_parameters()
 
 Xray_calculator = XRayFluxCalculatorNEXXUS()
 parker_grid = ParkerGrid()
-if config_param.star_magfield_models[0] == 'Bstar_catalog' :
-    catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog_latest.csv', delimiter=';')
+if config_param.star_magfield_models[0] == 'Bstar_catalog':
+    catalog_Bstar = pd.read_csv(maps_dir / 'Bstar_catalog.csv', delimiter=';')
 
 # --------------------------------------------------------- #
 # ---------------------- Data input ----------------------- #
@@ -86,7 +86,6 @@ dict_data = { 'nasa_data' : 'exoplanet_catalog_NASA.csv',
 
 data = pd.read_csv(maps_dir / dict_data[config_param.database])
 data = config_param.param_names(data=data)
-os.system('cp ' + str(maps_dir / dict_data[config_param.database]) + ' ' + config_param.output_path +"/"+dateofrun+"/catalog_input.csv")
 
 # --------------------------------------------------------- #
 # ------------------------ Main --------------------------- #
@@ -124,7 +123,7 @@ jupiter  = Planet(
     },
     Trot=0.41351,
 )
-jupiter.tidal_locking(age=4.6e9, star_mass=1.0)
+jupiter.tidal_locking(star_age=4.6e9, star_mass=MS)
 dyn_region_jup = DynamoRegion.from_planet(planet=jupiter, rhocrit=config_param.rho_crit)
 dyn_region_jup.magnetic_field(planet=jupiter,rc_dyn=config_param.rc_dyn, jup=True)
 mag_moment_jup = MagneticMoment(models=config_param.magnetic_moment_models, Mm=1.56e27, Rm=1.0)
@@ -138,6 +137,8 @@ i = 1
 
 skipped_targets = open('skipped_targets.txt', "w")
 new_rows = [config_param.output_params_units]
+star_vsini = []
+star_vsini_std = []
 
 profiling_pyinstrument = False
 if profiling_pyinstrument:
@@ -152,23 +153,32 @@ try :
         if ('PSR' in target.pl_name) or ('Pulsar' in target.pl_name) :
             print('Warning : {} has been skipped'.format(target.pl_name))
             skipped_targets.write(target.pl_name + ': pulsar \n')
+            star_vsini.append(np.nan)
+            star_vsini_std.append(np.nan)
             continue
 
-        if (not np.isnan(target.semi_major_axis)):
+        if ((not np.isnan(target.semi_major_axis)) or (np.isnan(target.semi_major_axis) and not np.isnan(target.star_mass) and not np.isnan(target.orbital_period))) and not (np.isnan(target.star_distance)):
+            if (np.isnan(target.semi_major_axis) and not np.isnan(target.star_mass) and not np.isnan(target.orbital_period)) :
+                semi_major_axis = np.power(target.star_mass * MS * 6.674e-11 * np.power(target.orbital_period * 86400/ (2*np.pi),2),1/3) / dua
+                log.info("Semi-major axis was predicted.")
+            else : 
+                semi_major_axis = target.semi_major_axis
             flag_tracker = FlagTracker(nmax_hypothesis=7)
             if np.isnan(target.mass) and np.isnan(target.mass_sini) and np.isnan(target.radius):
                 log.info("Planetary mass and radius were not available, those parameters were set equal to Jupiter's.")
                 flag_tracker.activate(hypothesis_number=0)
 
-            planet_distance = target.semi_major_axis if np.isnan(target.eccentricity) else target.semi_major_axis * (1 - target.eccentricity)
+            planet_distance = semi_major_axis if np.isnan(target.eccentricity) else semi_major_axis * (1 - target.eccentricity)
 
             if np.isnan(target.star_age):
                 star_age = 5.2
                 flag_tracker.activate(hypothesis_number=1)
             else:
                 if target.star_age <= 0.0001 :
-                    log.info("Stellar age is too small")
+                    log.info("Stellar age is too small.")
                     skipped_targets.write(target.pl_name + ': stellar age is too small\n')
+                    star_vsini.append(np.nan)
+                    star_vsini_std.append(np.nan)
                     continue
                 else:
                     star_age = target.star_age
@@ -181,7 +191,7 @@ try :
                 name=target.pl_name,
                 mass={"mass" : target.mass, "mass_sini" : target.mass_sini, "radius" : target.radius},
                 radius={"models": config_param.planet_radius_models, "radius": target.radius},
-                semi_major_axis=target.semi_major_axis,
+                semi_major_axis=semi_major_axis,
                 distance=planet_distance,
                 eccentricity=target.eccentricity,
                 Torb={"star_mass": target.star_mass, "Torb": target.orbital_period},
@@ -199,14 +209,22 @@ try :
             # ================================================== #
 
             simbad_query_result = config_param.query_simbad_star_param(star_name=html.unescape(target.star_name), sp_type = str(target.star_sp_type), star_alternate_names = target.star_alternate_names)
+            star_vsini.append(simbad_query_result['vsini'])
+            star_vsini_std.append(simbad_query_result['vsini_std'])
 
-            if config_param.star_magfield_models[0] == 'Bstar_catalog' :
+            if (config_param.star_magfield_models[0] == 'Bstar_catalog'):
                 crossmatch = catalog_Bstar[catalog_Bstar['Planet_Name']==target.pl_name]
                 if (crossmatch.size < 1):
                     log.info("KNN prediction for B* could not be done since too many parameters were missing.")
                     skipped_targets.write(target.pl_name + ': KNN prediction for B* could not be done since too many parameters were missing.\n')
                     continue
                 mag_field = np.asarray(crossmatch['B_G'])[0]
+            elif (config_param.star_magfield_models[0] != 'Bstar_catalog') :
+                crossmatch = config_param.Bstar_database[config_param.Bstar_database['Simbad_ID']==simbad_query_result['main_id']]
+                if (crossmatch.size < 1):
+                    mag_field = np.nan
+                else:
+                    mag_field = np.asarray(crossmatch['Bestim_G'])[0]
             else : 
                 mag_field = np.nan
 
@@ -253,7 +271,7 @@ try :
 
             if (np.isnan(target.eccentricity)) or (target.eccentricity == 0.) :
                 try:
-                    planet.tidal_locking(age=star.age, star_mass=star.mass)
+                    planet.tidal_locking(star_age=star.age, star_mass=star.unnormalize_mass())
                 except OverflowError:
                     log.info("Divergence in tidal locking")
                     skipped_targets.write(target.pl_name + ': divergence in tidal locking\n')
@@ -370,6 +388,7 @@ try :
                 magnetic_moment.mag_moment,
                 magnetic_moment.normalize_standoff_dist(planet=planet),
                 stellar_wind.density_planet,
+                stellar_wind.density_star,
                 stellar_wind.effective_velocity,
                 stellar_wind.velocity_sw,
                 stellar_wind.mass_loss_rate,
@@ -394,7 +413,7 @@ try :
                 target_emission._flux_received_spi* 1e3/ 1e-26,
                 target_emission.freq_c_max_star/ 1e6,
                 target_emission.freq_p_star/ 1e6,
-                target_emission.test_escaping_spi["radius"],
+                target_emission.test_escaping_spi["radius"]*dua/RS,
                 target_emission.test_escaping_spi['density'],
                 target_emission.test_escaping_spi["fc_star"]/1e6,
                 target_emission.test_escaping_spi["fp_star"]/1e6,
@@ -406,7 +425,12 @@ try :
             i+=1
         
         else :
-            skipped_targets.write(target.pl_name + ': semi-major axis unknown.\n')
+            if np.isnan(target.semi_major_axis) :
+                skipped_targets.write(target.pl_name + ': semi-major axis unknown.\n')
+            elif np.isnan(target.star_distance) : 
+                skipped_targets.write(target.pl_name + ': distance to Earth unknown.\n')
+            star_vsini.append(np.nan)
+            star_vsini_std.append(np.nan)
             continue
 
 except KeyboardInterrupt : 
@@ -417,9 +441,13 @@ finally :
     #df_target = pd.concat([df_target]+new_columns, axis=1)
     #df_target = df_target.transpose()
     df_target = pd.DataFrame(new_rows,columns=config_param.output_params)
+    data['star_vsini'] = pd.Series(np.array(star_vsini))
+    data['star_vsini_std'] = pd.Series(np.array(star_vsini_std))
+
     # --------------------------------------------------------- #
     # -------- Saving input and output in one folder  --------- #
 
+    data.to_csv(config_param.output_path +"/"+dateofrun+"/catalog_input.csv", sep = ";", index = False)
     os.system('cp skipped_targets.txt '+config_param.output_path +'/'+dateofrun+'/skipped_targets.txt')
     os.system('rm skipped_targets.txt')
 

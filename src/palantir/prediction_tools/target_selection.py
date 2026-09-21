@@ -64,8 +64,8 @@ class Config:
 
         maps_dir_Bstar = files("magfieldprediction.data_files")
         parcat = pd.read_csv(maps_dir_Bstar / "stellar_param_catalog.csv", sep=";")
-        parcat["perrot_s"] = parcat["diameter_km"]/(2*np.abs(parcat["vsini_kms"]))
-        self.Bstar_database = parcat[["Bestim_G","Mass_Msun","perrot_s","Age_Gyr","Teff_K","diameter_km","V_mag"]].copy()
+        parcat["perrot_s"] = 2*np.pi* parcat["diameter_km"]/(2*np.sqrt(4/3)*parcat["vsini_kms"])
+        self.Bstar_database = parcat[["Bestim_G","Mass_Msun","perrot_s","Age_Gyr","Teff_K","diameter_km","V_mag", "Simbad_ID"]].copy()
 
         self.custom_simbad = Simbad()
         self.custom_simbad.add_votable_fields('sp_type')
@@ -90,14 +90,14 @@ class Config:
         self.output_params = ["name","ra","dec","planet_mass", "planet_radius", "planet_luminosity", "star_planet_distance", "semi_major_axis",
             "planet_rotation_period", "planet_orbital_period","tidally_locked","star_simbad_id", "star_mass","star_radius","star_age","earth_distance",
             "star_magfield","star_rotperiod","star_luminosity","star_Xray_flux","spectral_type", "spectral_type_code","star_effective_temp","dynamo_density",
-            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","magnetosphere_radius","sw_density","sw_effective_velocity","sw_velocity",
+            "dynamo_radius","B_dyn" ,"B_eq","magnetic_moment","magnetosphere_radius","sw_density_planet", "sw_density_star","sw_effective_velocity","sw_velocity",
             "mass_loss_rate","coronal_temperature","sw_radial_magfield_planet","sw_azimuthal_magfield_planet","sw_total_magfield_planet","sw_perp_magfield_planet",
             "distance_alfven_point","alfven_velocity","magnetic_field_planet","fc_max_planet","fp_planet",
             "pow_emission_kinetic","pow_emission_magnetic","pow_emission_spi", "flux_kinetic_au", "flux_magnetic_au",
             "flux_spi_au", "flux_received_kinetic","flux_received_magnetic", "flux_received_spi",
             "fc_max_star", "fp_star","distance_escaping_spi", "density_escaping_spi", "fc_star_escaping_spi", "fp_star_escaping_spi", "tau_free_free_ms","tau_free_free_spi", "flag"]
         self.output_params_units = ["","deg", "deg", "MJ", "RJ", "LS", "AU", "AU","hr","days","","", "MS", "RS", "yr", "pc", "T", "days",
-            "LS", "erg.cm-2.s-1","", "","K", "g.cm-3", "Rp", "T", "T", "MmagJ", "Rp", "m-3", "m.s-1", "m.s-1","kg.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
+            "LS", "erg.cm-2.s-1","", "","K", "g.cm-3", "Rp", "T", "T", "MmagJ", "Rp", "m-3","m-3", "m.s-1", "m.s-1","kg.s-1", "K", "T","T","T","T","AU", "m.s-1", "T", "MHz", "MHz", "W", 
             "W", "W","Jy", "Jy", "Jy", "mJy","mJy", "mJy", "MHz", "MHz","AU", "m-3", "MHz", "MHz", "", "", ""]
         logger.info('Configuration parameters succesfully initialized.')
 
@@ -144,16 +144,17 @@ class Config:
             i += 1
 
         if (result_table is None) or (len(result_table) == 0) :
-            return {"main_id" : star_name, "sp_type" : sp_type ,"period" : np.nan, "vsini" : np.nan, "flux_B" : np.nan, "flux_V" : np.nan}
+            return {"main_id" : star_name, "sp_type" : sp_type ,"period" : np.nan, "vsini" : np.nan, "vsini_std" : np.nan ,"flux_B" : np.nan, "flux_V" : np.nan}
 
         main_id = star_name if (np.ma.is_masked(result_table["main_id"][0])) else str(result_table["main_id"][0])
         spectral_type = sp_type if (np.ma.is_masked(result_table['sp_type'][0]) or (sp_type != "nan")) else str(result_table["sp_type"][0])
-        period = np.nan if (np.ma.is_masked(result_table["mesvar.period"][0]) or result_table["mesvar.period"][0] == 0) else float(result_table["mesvar.period"][0])
-        v_sini = np.nan if (np.ma.is_masked(result_table['mesrot.vsini'][0]) or result_table["mesrot.vsini"][0] == 0) else float(result_table["mesrot.vsini"][0])
-        flux_B = np.nan if (np.ma.is_masked(result_table["B"][0]) or result_table["B"][0] == 0) else float(result_table["B"][0])
-        flux_V = np.nan if (np.ma.is_masked(result_table["V"][0]) or result_table["V"][0] == 0) else float(result_table["V"][0])
+        period = np.nan if (np.ma.is_masked(result_table["mesvar.period"][0]) or result_table["mesvar.period"][0] == 0) else float(result_table["mesvar.period"][-1])
+        v_sini = np.nan if (np.ma.is_masked(result_table['mesrot.vsini'][0]) or result_table["mesrot.vsini"][0] == 0) else np.mean(np.abs(result_table["mesrot.vsini"]))
+        v_sini_std = np.nan if (np.ma.is_masked(result_table['mesrot.vsini'][0]) or result_table["mesrot.vsini"][0] == 0) else np.std(np.abs(result_table["mesrot.vsini"]))
+        flux_B = np.nan if (np.ma.is_masked(result_table["B"][-1]) or result_table["B"][-1] == 0) else float(result_table["B"][-1])
+        flux_V = np.nan if (np.ma.is_masked(result_table["V"][-1]) or result_table["V"][-1] == 0) else float(result_table["V"][-1])
 
-        return {"main_id" : main_id, "sp_type" : spectral_type,"period": period, "vsini" : np.abs(v_sini), "flux_B" : flux_B, "flux_V" : flux_V}
+        return {"main_id" : main_id, "sp_type" : spectral_type,"period": period, "vsini" : v_sini, "vsini_std" : v_sini_std, "flux_B" : flux_B, "flux_V" : flux_V}
 
     def log_current_run_parameters(self):
         logger.info("Database used for this run : {}".format(self.database))

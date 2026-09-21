@@ -154,9 +154,7 @@ class Star:
         elif np.isnan(mass) and np.isnan(radius) :
             #Mean mass of the stellar class
             class_letter = sptype[0] if (len(sptype) != 0) else ""
-            if (class_letter == "O") or (class_letter == "o") :
-                self._mass = 16.
-            elif (class_letter == "B") or (class_letter == "b") :
+            if (class_letter == "B") or (class_letter == "b") :
                 self._mass = 9.05
             elif (class_letter =="A") or (class_letter == "a") :
                 self._mass = 1.75
@@ -432,14 +430,15 @@ class Star:
 
         elif model == "Bstar_Duchene_et_al_2026" :
             startest = pd.DataFrame({"Mass_Msun" : [mass],
-                            "perrot_s" : [rotperiod * 86400 / 2*np.pi],
+                            "perrot_s" : [rotperiod * 86400],
                             "Age_Gyr" : [age * 1e-9] ,
                             "Teff_K" : [Teff],
                             "diameter_km" : [2 * radius * 6.96342e8 * 1e-3], 
                             "V_mag" : [np.nan]})
-            BKNN_result = KNNpred(Bstar_database,startest)
+            cat_database =  Bstar_database[["Bestim_G","Mass_Msun","perrot_s","Age_Gyr","Teff_K","diameter_km","V_mag"]].copy()
+            BKNN_result = KNNpred(cat_database,startest)
             if np.isnan(BKNN_result.loc[0]) : 
-                BNN_result = NNpred(Bstar_database,startest)
+                BNN_result = NNpred(cat_database,startest)
                 magfield = BNN_result.loc[0,"BNN_G"]
             else :
                 magfield = BKNN_result.loc[0]

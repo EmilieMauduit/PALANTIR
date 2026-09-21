@@ -9,6 +9,8 @@
 src/palantir/prediction_tools/stellar_wind_old.py
 src/palantir/scripts/input_files/Bstar_catalog_new.csv
 src/palantir/scripts/input_files/run_parameters.csv
+src/palantir/scripts/input_files/Bstar_catalog_nov2025.csv
+src/palantir/scripts/input_files/Bexo_17_11_2025.csv
 
 # Caches
 __pycache__/

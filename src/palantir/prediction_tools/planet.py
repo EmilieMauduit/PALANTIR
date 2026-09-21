@@ -279,7 +279,7 @@ class Planet:
         self._radius = Rp * (1 + 0.05 * pow(Teq / T0, gamma))
         return Teq
 
-    def tidal_locking(self, age: float, star_mass: float, Qpp: float = 3.16e5):
+    def tidal_locking(self, star_age: float, star_mass: float, Qpp: float = 3.16e5):
         """Computes the rotation rate of the planet depending on a synchronized or free rotation.
         Depending on the age of the host star, a limit distance is evaluated and if the star-planet distance is lower than that we consider a synchronized orbit, else we assume the rotation rate to be Jupiter's.
 
@@ -294,10 +294,11 @@ class Planet:
         """
 
         wrot_J = 1.77e-4  # rad.s-1
-        d = self.stardist
+        dua = 1.49597870700e11  # m
+        d = self.stardist * dua 
         dsync = self._calculate_synchro_dist(
-            wrot_J, Qpp, age, self.mass, self.radius, star_mass
-        )
+            wrot=wrot_J, Qp=Qpp, tstar=star_age, planet_mass=self.unnormalize_mass(), planet_radius=self.unnormalize_radius(), star_mass=star_mass
+            )
         if d <= dsync:
             self.rotperiod = self._orbitperiod
             self.tidally_locked = True
@@ -426,7 +427,7 @@ class Planet:
     def _calculate_synchro_dist(
         wrot: float,
         Qp: float,
-        tsync: float,
+        tstar: float,
         planet_mass: float,
         planet_radius: float,
         star_mass: float,
@@ -440,23 +441,24 @@ class Planet:
             factor of dissipation by tidal effect
         :type Qp:
             float
-        :param tsync:
-            time of synchronization
-        :type tsync:
+        :param tstar:
+            stellar age [yr]
+        :type tstar:
             float
         :param planet_mass:
-            Mass of the planet [Mjup]
+            Mass of the planet [kg]
         :type planet_mass:
             float
         :param planet_radius:
-            Radius of the planet [Rjup]
+            Radius of the planet [m]
         :type planet_radius:
             float
         :param star_mass:
-            Mass of the star [Msun]
+            Mass of the star [kg]
         :type star_mass:
             float
         """
+        tsync = tstar * 365 * 86400 #s
         G = 6.6725985e-11
         a = 9 * tsync / (4 * wrot * 0.26 * Qp)
         b = G * planet_mass / pow(planet_radius, 3)

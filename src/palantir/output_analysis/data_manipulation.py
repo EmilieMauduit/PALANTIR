@@ -18,7 +18,6 @@ import astropy.units as u
 from typing import List
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-import matplotlib.ticker as ticker
 
 import logging
 log = logging.getLogger('palantir.output_analysis.data_manipulation')
@@ -35,7 +34,7 @@ BSsw = 1  # T
 LS = 3.826e26  # W
 
 
-MJ = 1.8986e27  # kg
+MJ = 1.8986e27   #kg
 RJ = 69911e3  # m
 wJ = 1.77e-4  # s-1
 
@@ -109,7 +108,8 @@ class DataManipulation:
                 'B_eq' : ['$B_{p,eq}$', '[T]'], 
                 'magnetic_moment' : ['$M_{mag,p}$', '[$M_{mag,J}$]'],
                 'magnetosphere_radius' : ['$R_m$', '[$R_p$]'],
-                'sw_density' : ['$n_{e,SW}$', '[$m^{-3}$]'],
+                'sw_density_planet' : ['$n_{e,p}^{SW}$', '[$m^{-3}$]'],
+                'sw_density_star' : ['$n_{e,*}^{SW}$', '[$m^{-3}$]'],
                 'sw_effective_velocity' : ['$v_{eff,SW}$', '[$m.s^{-1}$]'],
                 'sw_velocity' : ['$v_{SW}$', '[$m.s^{-1}$]'],
                 'mass_loss_rate' : ['$\dot{M}_*$', '[$kg.s^{-1}$]'],
@@ -270,8 +270,8 @@ class DataManipulation:
                 color_dict = {'NenuFAR' : ['tab:red','solid'],
                                 'LOFAR low' : ['tab:green','dashed'],
                                 'LOFAR high' : ['tab:green','solid'],
-                                'SKA1 low' : ['tab:orange','solid'],
-                                'SKA2 low' : ['tab:orange', 'dashed'],
+                                'SKA1 low' : ['black','solid'],
+                                'SKA2 low' : ['black', 'dashed'],
                                 'GMRT' : ['tab:red','solid'],
                                 'VLA' : ['tab:blue','solid'],
                                 'UTR-2' : ['tab:blue','dashed']}
@@ -295,14 +295,14 @@ class DataManipulation:
 
         elif interaction == 'SPI' :
             flux_to_plot = np.array(self.data_base['flux_received_spi'][1:],dtype='float')
-            frequencies_to_plot = np.array(self.data_base['fc_max_star'][1:],dtype='float')
+            frequencies_to_plot = np.array(self.data_base['fc_star_escaping_spi'][1:],dtype='float')
             xlabel = '$f_{c,*}^{max}$  [MHz]' ;  ylabel = '$\Phi_{radio}^{SPI}$  [mJy]'
 
             if test_absorption :
                 tau_free_free = np.array(self.data_base['tau_free_free_spi'][1:],dtype=float)[~np.isnan(flux_to_plot)]
 
             if test_escaping :
-                fp_star = np.array(self.data_base['fp_star'][1:][~np.isnan(flux_to_plot)],dtype='float')
+                fp_star = np.array(self.data_base['fp_star_escaping_spi'][1:][~np.isnan(flux_to_plot)],dtype='float')
                 fc_star = frequencies_to_plot[~np.isnan(flux_to_plot)]
 
                 escaping = fc_star > 10*fp_star
@@ -351,11 +351,11 @@ class DataManipulation:
                 alpha=1)
             
         if instruments is not None :
-            for name,sensitivity in sensitivity_dict.items():
+            for name in instruments:
                 if name == 'GMRT':
-                    ax.scatter(sensitivity[0,:],sensitivity[1,:], color=color_dict[name][0], label = name)
+                    ax.scatter(sensitivity_dict[name][0,:],sensitivity_dict[name][1,:], color=color_dict[name][0], label = name)
                 else :
-                    ax.plot(sensitivity[0,:],sensitivity[1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name)
+                    ax.plot(sensitivity_dict[name][0,:],sensitivity_dict[name][1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name)
             
         ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='Ionospheric cut-off')
         rect = plt.Rectangle((xmin,ymin),10-xmin,ymax-ymin,facecolor='black',alpha=0.1)
@@ -545,6 +545,7 @@ class DataManipulation:
         print("Min : {}, Max : {}".format(np.min(data[mask_inf&mask_nan]), np.max(data[mask_inf&mask_nan])))
         print("Arg min : {}, arg max : {}".format(np.argmin(data[mask_inf&mask_nan]),np.argmax(data[mask_inf&mask_nan])))
         data_to_plot = np.log10(data[mask_inf&mask_nan]) if scale == "log" else data[mask_inf&mask_nan]
+        print(len(data_to_plot))
         ax.hist(data_to_plot, 
                 bins = kwargs.get('bins',25),
                 color = kwargs.get('color','tab:blue'),
@@ -556,6 +557,7 @@ class DataManipulation:
         ax.set_ylabel('Count', fontsize=18)
         ax.set_xscale(kwargs.get('xscale','linear'))
         ax.set_yscale(kwargs.get('yscale','linear'))
+        ax.set_ylim(top = kwargs.get('ymax',None))
         ax.tick_params(axis='both',labelsize=14)
         ax.set_title(kwargs.get('title',""))
         plt.legend()
