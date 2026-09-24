@@ -18,6 +18,7 @@ import astropy.units as u
 from typing import List
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import matplotlib.patches as mpatches
 
 import logging
 log = logging.getLogger('palantir.output_analysis.data_manipulation')
@@ -208,6 +209,7 @@ class DataManipulation:
             test_alfven_velocity : bool = False,
             test_escaping : bool = False,
             conversion_factor : float = None,
+            error_bars : dict = None,
             **kwargs) :
         """ 
         This method allows to produce plots of predicted flux vs maximum cyclotron frequency. 
@@ -342,8 +344,8 @@ class DataManipulation:
             ax.scatter(frequencies_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[sub_alfvenic_eff & sub_alfvenic_sw], marker = 'v', color='tab:orange', alpha=0.6, label= 'Sub-Alfvénic')#'$v_{SW}$ and $v_{SW,eff}$ < $v_A$')
             ax.scatter(frequencies_to_plot[super_alfvenic_eff & sub_alfvenic_sw], flux_to_plot[super_alfvenic_eff & sub_alfvenic_sw], marker = 'd', color='tab:green', alpha=0.6, label='Sub/Super-Alfvénic')#'$v_{SW}$ < $v_A$ and $v_{SW,eff}$ > $v_A$')
         elif test_escaping:
-            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', alpha=0.6, label='Emission unlikely')#"$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$")
-            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', alpha=0.6, label='Emission likely')#"$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$")
+            ax.scatter(frequencies_to_plot[not_escaping], flux_to_plot[not_escaping], marker = '^', color='tab:purple', alpha=0.6, label="$f_{ce}$ < $f_{pe}$" if interaction=="MS" else "$f_{ce}$ < 10$f_{pe}$",zorder=9)
+            ax.scatter(frequencies_to_plot[escaping], flux_to_plot[escaping], marker ='v', color='tab:orange', alpha=0.6, label="$f_{ce}$ > $f_{pe}$" if interaction == "MS" else "$f_{ce}$ > 10$f_{pe}$", zorder = 10)
         else :
             ax.scatter(frequencies_to_plot,flux_to_plot, 
                 marker='+', 
@@ -357,9 +359,19 @@ class DataManipulation:
                 else :
                     ax.plot(sensitivity_dict[name][0,:],sensitivity_dict[name][1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name)
             
-        ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='Ionospheric cut-off')
-        rect = plt.Rectangle((xmin,ymin),10-xmin,ymax-ymin,facecolor='black',alpha=0.1)
+        ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='Ionospheric cut-off',zorder=11)
+        rect = plt.Rectangle((xmin,ymin),10-xmin,ymax-ymin,facecolor='black',alpha=0.1,zorder=2)
         ax.add_patch(rect)
+        if error_bars is not None :
+            x_anchor = error_bars["anchor"][0]; y_anchor = error_bars["anchor"][1]
+            width = error_bars['width'] - x_anchor ; height = error_bars['height'] - y_anchor
+            x_arrow = error_bars["arrow"][0] ; y_arrow = error_bars["arrow"][1]
+            rect_error = plt.Rectangle((x_anchor,y_anchor),width,height,facecolor='white',edgecolor='black',alpha=0.8,zorder=3)
+            ax.add_patch(rect_error)
+            arrx = mpatches.FancyArrowPatch((x_arrow/3, y_arrow), (x_arrow * 3, y_arrow),arrowstyle='<->,head_width=.15', mutation_scale=20, linewidth=1.5,zorder=4)
+            ax.add_patch(arrx)
+            arry = mpatches.FancyArrowPatch((x_arrow, y_arrow/10), (x_arrow, y_arrow * 10),arrowstyle='<->,head_width=.15', mutation_scale=20, linewidth=1.5,zorder=5)
+            ax.add_patch(arry)
         ax.set_xlabel(kwargs.get("xlabel", xlabel), fontsize=18)
         ax.set_ylabel(kwargs.get("ylabel", ylabel), fontsize=18)
         ax.tick_params(axis='both',labelsize=14)
@@ -372,8 +384,9 @@ class DataManipulation:
         #ax.yaxis.set_minor_formatter(ticker.LogFormatter())
         ax.set_title(kwargs.get('title',""), fontsize=18)
         #ax.grid(True,which="both")
-        plt.grid()
-        plt.legend(fontsize=12, ncol = 1, loc = kwargs.get("legend_loc", "best"))
+        ax.grid(zorder=0)
+        l = ax.legend(fontsize=12, ncol = 1, loc = kwargs.get("legend_loc", "best"))
+        l.set_zorder(12)
         plt.tight_layout()
 
         figname = kwargs.get("figname","")
@@ -550,7 +563,7 @@ class DataManipulation:
                 bins = kwargs.get('bins',25),
                 color = kwargs.get('color','tab:blue'),
                 range = kwargs.get('range',),
-                histtype = 'step', label = 'min = {} '.format(np.min(data[mask_inf&mask_nan])) + self.dict_axis_label[xfield][1] + '\n max = {} '.format(np.max(data[mask_inf&mask_nan])) + self.dict_axis_label[xfield][1]
+                histtype = 'step', label = 'min = {:.2e} '.format(np.min(data[mask_inf&mask_nan])) + self.dict_axis_label[xfield][1] + '\n max = {:.2e} '.format(np.max(data[mask_inf&mask_nan])) + self.dict_axis_label[xfield][1]
             )
         xlabel = "$log_{10}($" + self.dict_axis_label[xfield][0] + ") " + self.dict_axis_label[xfield][1] if scale == 'log' else self.dict_axis_label[xfield][0] + " " + self.dict_axis_label[xfield][1]
         ax.set_xlabel(kwargs.get('xlabel',xlabel), fontsize=18)

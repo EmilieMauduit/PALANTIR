@@ -3,12 +3,12 @@ nasa_data;0
 exoplanet_data;1
 custom_data;0
 blackett;0
-busse;1
+busse;0
 rein-chris;0
-rein-chris-dyn;0
-mizu_slow;1
-mizu_mod;1
-sano;1
+rein-chris-dyn;1
+mizu_slow;0
+mizu_mod;0
+sano;0
 dens_lin;0
 dens_laneEmden;1
 rho_crit;700

@@ -260,12 +260,9 @@ class Emission:
             raise KeyError(
                 "planet or star or magnetic_moment or stellar_wind not in value"
             )
-        prad_jup = 2.1e11  # W
-        standoff_dist_jup = 40.1  # RJ
-        density_jup = 1.98e5  # m-3
-        veff_jup = 523e3  # m/s
-
-        self._pow_emission_kinetic = (pow(value["planet"].unnormalize_radius(), 2) 
+        beta = 2e-3 
+        mp = 1.67e-27 #kg
+        self._pow_emission_kinetic = (beta * mp * np.pi
             * pow(value["magnetic_moment"].magnetosphere_radius,2)
             * (value["stellar_wind"].density_planet)
             * pow(value["stellar_wind"].effective_velocity, 3))
