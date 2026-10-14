@@ -357,7 +357,7 @@ class DataManipulation:
                 if name == 'GMRT':
                     ax.scatter(sensitivity_dict[name][0,:],sensitivity_dict[name][1,:], color=color_dict[name][0], label = name)
                 else :
-                    ax.plot(sensitivity_dict[name][0,:],sensitivity_dict[name][1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name)
+                    ax.plot(sensitivity_dict[name][0,:],sensitivity_dict[name][1,:], color=color_dict[name][0], linestyle=color_dict[name][1], linewidth=3, label = name, zorder=12)
             
         ax.plot([10.0,10.0],[ymin,ymax], linestyle = 'dashed', color='black',label='Ionospheric cut-off',zorder=11)
         rect = plt.Rectangle((xmin,ymin),10-xmin,ymax-ymin,facecolor='black',alpha=0.1,zorder=2)

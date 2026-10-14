@@ -60,6 +60,7 @@ class StellarWind:
         self.velocity_sw = None
         self.effective_velocity = None
         self.mass_loss_rate = None
+        self.mass_loss_rate_model = None
         self.corona_temperature = Tcor
         self.distance_alfven_point = d_alfven_point
         self._alfven_velocity = None
@@ -180,7 +181,8 @@ class StellarWind:
         self.density_star = ne_star
         self.velocity_sw = v
         self.effective_velocity = veff
-        self.mass_loss_rate = Mls 
+        self.mass_loss_rate = Mls["value"]
+        self.mass_loss_rate_model = Mls["model"]
     
     def compute_B_imf_components(self, planet: Planet, star: Star):
         self.radial_mag_field = self._calc_B_radial(
@@ -472,29 +474,35 @@ class StellarWind:
         mp = 1.660540210e-27  # kg
         do = 1.49597870e11  # m
         MS = 1.989e30  # kg
+        Psun = 609.12 / 24 # days
 
         if (t >= 0.1e6) and (t <= 1e6):
             #Cranmer et al 2008 ApJ
             Mls = 1e-9 * MS / (365 * 86400)
+            model = "Cranmer_2008_ApJ"
 
         if (M > 0.25) and (M < 1.2) :
             if (t>1e6) and (t<=100e6) :
                 # Bouvier & Gallet 2013 AA
-                Mls = 1.8e-14 * np.power(25.5/P,1.58) * MS / (365 * 86400)
+                Mls = 1.8e-14 * np.power(Psun/P,1.58) * MS / (365 * 86400)
+                model = "Bouvier_2013_AA"
             elif (t > 100e6) and (t <= 5.2e9) : 
                 #Johnstone et al 2015 AA (II)
-                Mls = np.power(R,2) * np.power(25.5/P,1.33) * np.power(M,-3.36) * 2e-14 * MS / (365 * 86400)
+                Mls = np.power(R,2) * np.power(Psun/P,1.33) * np.power(M,-3.36) * 2e-14 * MS / (365 * 86400)
+                model = "Johnstone_2015_AA"
             else :
                 #Newkirk 1980
                 vsun = StellarWind._calc_vsun(t)
                 nsun = StellarWind._calc_nsun(t)
                 Mls = 4 * np.pi * (do**2) * nsun * vsun * mp * (R**2)
+                model = "Newkirk_1980"
         else :
             #Newkirk 1980
             vsun = StellarWind._calc_vsun(t)
             nsun = StellarWind._calc_nsun(t)
             Mls = 4 * np.pi * (do**2) * nsun * vsun * mp * (R**2)
-        return Mls
+            model = "Newkirk_1980"
+        return {"model" : model, "value" : Mls}
 
     @staticmethod
     def _parker_velocity(v: float, d: float, rc: float, vc: float) -> float:
@@ -737,7 +745,7 @@ class StellarWind:
 
         veff = sqrt((v**2) + (vorb**2))
         Mls = StellarWind._mass_lossrate(t, star.radius, star.mass, star.rotperiod)
-        ne_planet = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
+        ne_planet = Mls["value"] / (4 * np.pi * ((d * dua) ** 2) * v * mp)
         ne_star = ne_planet * ((d * dua / star.unnormalize_radius()) ** 2)
         if (ne_planet <= 0) or (ne_star <= 0):
             logger.error("Negative stellar wind density is not physical.")
@@ -816,7 +824,7 @@ class StellarWind:
 
         veff = sqrt((v**2) + (vorb**2))
         Mls = StellarWind._mass_lossrate(t, star.radius, star.mass, star.rotperiod)
-        ne_planet = Mls / (4 * np.pi * ((d * dua) ** 2) * v * mp)
+        ne_planet = Mls["value"] / (4 * np.pi * ((d * dua) ** 2) * v * mp)
         ne_star = ne_planet * ((d * dua / star.unnormalize_radius()) ** 2)
         if (ne_planet <= 0) or (ne_star <= 0):
             logger.error("Negative stellar wind density is not physical.")

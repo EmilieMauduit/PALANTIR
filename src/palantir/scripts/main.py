@@ -43,8 +43,8 @@ LS = 3.826e26  # W
 
 MJ = 1.8986e27  # kg
 RJ = 69911e3  # m
-wrotJ = 1.77e-4  # rad.s-1
-worbJ = 1.68e-8  # rad.s-1
+wrotJ = 2 * np.pi / (9.925 * 3600) # rad.s-1
+worbJ = 2 * np.pi / (4332.01 * 86400)  # rad.s-1
 
 ME = 5.97237e24  # kg
 RE = 6371.0e3  # m
@@ -148,7 +148,6 @@ if profiling_pyinstrument:
 try :
 
     for target in data.itertuples():
-        flag = 0
         log.info("Planet : {}".format(target.pl_name))
         if ('PSR' in target.pl_name) or ('Pulsar' in target.pl_name) :
             print('Warning : {} has been skipped'.format(target.pl_name))
@@ -163,7 +162,7 @@ try :
                 log.info("Semi-major axis was predicted.")
             else : 
                 semi_major_axis = target.semi_major_axis
-            flag_tracker = FlagTracker(nmax_hypothesis=7)
+            flag_tracker = FlagTracker(nmax_hypothesis=8)
             if np.isnan(target.mass) and np.isnan(target.mass_sini) and np.isnan(target.radius):
                 log.info("Planetary mass and radius were not available, those parameters were set equal to Jupiter's.")
                 flag_tracker.activate(hypothesis_number=0)
@@ -309,6 +308,9 @@ try :
                 skipped_targets.write(target.pl_name + ': divergence in stellar wind calculation\n')
                 continue
 
+            if stellar_wind.mass_loss_rate_model == "Newkirk_1980" :
+                log.info("Newkirk 1980 model was used for mass-loss rate, not well adapted for younger stars.")
+                flag_tracker.activate(hypothesis_number=6)
             # ============================================================= #
             # ---------------------- Magnetic Moment ---------------------- #
             # ============================================================= #
@@ -321,7 +323,7 @@ try :
             if magnetic_moment.normalize_standoff_dist(planet) < 1:
                 magnetic_moment.magnetosphere_radius = planet.unnormalize_radius()
                 log.info("Predicted magnetosphere radius lower than 1 Rp. Forced to 1. Rp")
-                flag_tracker.activate(hypothesis_number=6)
+                flag_tracker.activate(hypothesis_number=7)
 
             if not config_param.rc_dyn :
                 dyn_region.mag_field_equatorial = magnetic_moment.mag_moment * mag_moment_jup.mag_moment * 1e-7 /np.power(planet.unnormalize_radius(),3)

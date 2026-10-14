@@ -315,8 +315,8 @@ class MagneticMoment:
 
         #Bdyn = dyn_region.mag_field_dynamo ; Bdyn_jup = dynamo_jup.mag_field_dynamo
         Beq = dyn_region.mag_field_equatorial
-        Beq_jup = dynamo_jup.mag_field_equatorial  
-
-        mag_moment = pow(planet.radius,3) * Beq / Beq_jup #eq 4
+        Mm_jup = 1.56e27 #A.m^2
+        mu0 = 4*np.pi * 1e-7
+        mag_moment = pow(planet.unnormalize_radius(),3) * Beq * 4*np.pi / mu0
         
-        return mag_moment
+        return mag_moment / Mm_jup

@@ -110,7 +110,7 @@ class Emission:
             raise KeyError("planet or magnetic_moment not in value")
         planet = value["planet"]
         magnetic_moment = value["magnetic_moment"]
-        mag_moment_jup = 1.56e27  # A.m-2
+        mag_moment_jup = 1.56e27  # A.m^2
         self._mag_field_planet = (
             1e-7
             * 2
@@ -305,17 +305,21 @@ class Emission:
             raise KeyError(
                 "planet or star or magnetic_moment or stellar_wind or sw_jupiter not in value"
             )
-        
-        if not np.isnan(self._mag_field_planet) :
-            self._pow_emission_spi = self.pow_emission_magnetic
+
+        if value["stellar_wind"].alfven_velocity < value["stellar_wind"].velocity_sw :
+            self._pow_emission_spi = np.nan
+
         else :
-            R_iono = value["planet"].unnormalize_radius() * 1.2
-            beta = 2e-3 
-            self._pow_emission_spi = ( beta * np.pi
-            * self._test_escaping_spi['veff'] #* value["stellar_wind"].effective_velocity
-            * pow(self._test_escaping_spi['B_perp'], 2) #* pow(value["stellar_wind"].perp_mag_field , 2)
-            * pow(R_iono,2)
-            ) / (4e-7 * np.pi)
+            if not np.isnan(self._mag_field_planet) :
+                self._pow_emission_spi = self.pow_emission_magnetic
+            else :
+                R_iono = value["planet"].unnormalize_radius() * 1.2
+                beta = 2e-3 
+                self._pow_emission_spi = ( beta * np.pi
+                * self._test_escaping_spi['veff'] #* value["stellar_wind"].effective_velocity
+                * pow(self._test_escaping_spi['B_perp'], 2) #* pow(value["stellar_wind"].perp_mag_field , 2)
+                * pow(R_iono,2)
+                ) / (4e-7 * np.pi)
 
     #=============== Flux at 1AU ===============#
 
@@ -428,8 +432,10 @@ class Emission:
         star = value["star"]
         stellar_wind = value["stellar_wind"]
         dua = 1.49597870700e11  # m
-
-        self._tau_free_free_spi = 109.6 * pow(stellar_wind.corona_temperature, -0.5) * (self.test_escaping_spi["density"]**2) * pow(self.test_escaping_spi['radius'] * dua,2)/ ((self.test_escaping_spi['fc_star']**2) * star.unnormalize_mass())
+        if value["stellar_wind"].alfven_velocity < value["stellar_wind"].velocity_sw :
+            self._tau_free_free_spi = np.nan
+        else :
+            self._tau_free_free_spi = 109.6 * pow(stellar_wind.corona_temperature, -0.5) * (self.test_escaping_spi["density"]**2) * pow(self.test_escaping_spi['radius'] * dua,2)/ ((self.test_escaping_spi['fc_star']**2) * star.unnormalize_mass())
 
     @property
     def tau_free_free_ms(self):

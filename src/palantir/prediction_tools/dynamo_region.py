@@ -67,7 +67,6 @@ class DynamoRegion:
         MS = 1.989e30  # kg
         RS = 6.96342e8  # m
         RJ = 69911e3  # m
-        rcJ = 0.8487819514093978 #Rj
         Bdyn = 4.8 * pow(
             (planet.unnormalize_mass() / MS)
             * (planet.luminosity ** 2)

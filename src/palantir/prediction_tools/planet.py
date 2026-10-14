@@ -179,7 +179,7 @@ class Planet:
     def orbitrate(self):
         """Computes the orbital pulsation of the planet, with respect to Jupiter's."""
         if self._orbitrate is None :
-            worbJ = 1.68e-8  # rad.s-1
+            worbJ = 2 * np.pi / (4332.589 * 86400)  # rad.s-1
             self._orbitrate = (2 * np.pi / (self.orbitperiod * 24 * 3600 )) / worbJ
         return self._orbitrate
     
@@ -187,7 +187,7 @@ class Planet:
     def rotrate(self):
         """Computes the rotation pulsation of the planet, with respect to Jupiter's."""
         if self._rotrate is None : 
-            wrotJ = 1.77e-4  # rad.s-1
+            wrotJ = 2 * np.pi / (9.925 * 3600) # rad.s-1
             self._rotrate = (2 * np.pi / (self.rotperiod * 24 * 3600)) / wrotJ
         return self._rotrate
         
@@ -202,13 +202,13 @@ class Planet:
         return radius
 
     def unnormalize_orbital_rate(self):
-        worb_jup = 1.68e-8  # rad.s-1
-        worb = self.orbitrate * worb_jup
+        worbJ = 2 * np.pi / (4332.589 * 86400)  # rad.s-1
+        worb = self.orbitrate * worbJ
         return worb
 
     def unnormalize_rotrate(self):
-        wrot_jup = 1.77e-4  # rad.s-1
-        wrot = self.rotrate * wrot_jup
+        wrotJ = 2 * np.pi / (9.925 * 3600) # rad.s-1
+        wrot = self.rotrate * wrotJ
         return wrot
 
     def radius_expansion(self,luminosity: float) -> None :
@@ -293,7 +293,7 @@ class Planet:
                 float
         """
 
-        wrot_J = 1.77e-4  # rad.s-1
+        wrot_J = 2 * np.pi / (9.925 * 3600) # rad.s-1
         dua = 1.49597870700e11  # m
         d = self.stardist * dua 
         dsync = self._calculate_synchro_dist(

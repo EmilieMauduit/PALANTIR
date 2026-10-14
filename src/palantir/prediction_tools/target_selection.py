@@ -176,9 +176,19 @@ class Config:
 class FlagTracker:
     """Tracks the approximations made at each step of the prediction process, with a flag in bits."""
     
-    def __init__(self, nmax_hypothesis=10):
+    def __init__(self, nmax_hypothesis=8):
         self.nb_hypothesis = nmax_hypothesis
         self.flags = 0  # All bits set to zero initially
+        self.hypothesis_dict = {
+            0 : "$M_p$ was set to 1 $M_J$, because no measurements were available for $M_p$ or $R_p$.",
+            1 : "$t_*$ was set to 5.2 Gyr, because no measurement was available.",
+            2 : "$M_*$ was obtained from the spectral type, because no measurements were available for $M_*$ or $R_*$.",
+            3 : "Just signaling that the rotation period of the star is less than 1 hr, some models are not very reliable in this case.",
+            4 : "The planet is not tidally locked, its rotation period is assumed to be the same as Jupiter's.",
+            5 : r"No points were $\rho_c \le \rho_t$ in the dynamo region.",
+            6 : "The Newkirk 1980 model was used for estimating the stellar mass-loss rate.",
+            7 : "Magnetosphere radius was set to 1 R_p, because it was estimated to be smaller which is not physically possible."
+        }
     
     def activate(self, hypothesis_number : int):
         """Activate the bit corresponding to the given step (0-indexed)."""
@@ -201,6 +211,10 @@ class FlagTracker:
     def summarize(self):
         """Returns the list of all hypothesis that were used."""
         return [i for i in range(self.nb_hypothesis) if self.is_active(i)]
+
+    def decode_flags(self) -> list[int]:
+        """Gives the list of the flags activated."""
+        return [i for i in range(self.nb_hypothesis) if self.flags & (1 << i)]
     
 
 # ============================================================= #
